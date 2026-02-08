@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результаты обработки - VK Photo Uploader</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-chart-line"></i> Результаты обработки</h1>
+            <p class="subtitle">Статус выполнения загрузки в ВКонтакте</p>
+        </header>
+        
+        <main class="main-content">
+            <div class="card">
+                <div class="back-link">
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                        <i class="fas fa-home"></i> На главную
+                    </a>
+                    <a href="{{ url_for('upload_files') }}" class="btn btn-secondary">
+                        <i class="fas fa-upload"></i> Новая загрузка
+                    </a>
+                </div>
+                
+                <div class="status-container" id="statusContainer">
+                    <div class="status-header">
+                        <h2><i class="fas fa-spinner fa-spin"></i> Обработка...</h2>
+                        <div class="status-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill" style="width: {{ status.progress if status else 0 }}%"></div>
+                            </div>
+                            <span class="progress-text" id="progressText">{{ status.progress if status else 0 }}%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="status-message" id="statusMessage">
+                        {{ status.message if status else 'Получение статуса...' }}
+                    </div>
+                    
+                    <div class="status-details">
+                        <div class="detail-item">
+                            <i class="fas fa-clock"></i>
+                            <span>Начато:</span>
+                            <strong id="startTime">{{ status.start_time if status else 'N/A' }}</strong>
+                        </div>
+                        <div class="detail-item">
+                            <i class="fas fa-file"></i>
+                            <span>Файлов получено:</span>
+                            <strong id="filesReceived">{{ status.files_received if status else 0 }}</strong>
+                        </div>
+                        <div class="detail-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Статус:</span>
+                            <strong id="currentStatus">{{ status.status if status else 'unknown' }}</strong>
+                        </div>
+                    </div>
+                    
+                    <div class="result-output" id="resultOutput" style="display: {{ 'block' if status and status.result else 'none' }};">
+                        <h3><i class="fas fa-terminal"></i> Вывод программы:</h3>
+                        <pre id="outputContent">{{ status.result if status and status.result else '' }}</pre>
+                    </div>
+                    
+                    <div class="result-actions" id="resultActions" style="display: {{ 'flex' if status and status.status in ['success', 'error'] else 'none' }};">
+                        {% if status and status.status == 'success' %}
+                            <a href="{{ url_for('download_log', session_id=session.upload_id) }}" class="btn btn-success">
+                                <i class="fas fa-download"></i> Скачать лог
+                            </a>
+                        {% elif status and status.status == 'error' %}
+                            <a href="{{ url_for('download_log', session_id=session.upload_id) }}" class="btn btn-warning">
+                                <i class="fas fa-bug"></i> Скачать лог ошибок
+                            </a>
+                        {% endif %}
+                        
+                        <button class="btn btn-secondary" onclick="cleanupSession()">
+                            <i class="fas fa-trash-alt"></i> Очистить сессию
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="footer">
+            <p>Сессия ID: {{ session.upload_id if session.upload_id else 'N/A' }}</p>
+        </footer>
+    </div>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <script>
+        const sessionId = '{{ session.upload_id }}';
+        let checkInterval;
+        
+        function updateStatus(data) {
+            // Обновляем прогресс
+            document.getElementById('progressFill').style.width = data.progress + '%';
+            document.getElementById('progressText').textContent = data.progress + '%';
+            
+            // Обновляем сообщение
+            document.getElementById('statusMessage').textContent = data.message;
+            
+            // Обновляем детали
+            document.getElementById('currentStatus').textContent = data.status;
+            document.getElementById('filesReceived').textContent = data.files_received;
+            
+            // Меняем иконку в зависимости от статуса
+            const statusIcon = document.querySelector('.status-header h2 i');
+            if (data.status === 'processing') {
+                statusIcon.className = 'fas fa-spinner fa-spin';
+            } else if (data.status === 'success') {
+                statusIcon.className = 'fas fa-check-circle';
+                statusIcon.style.color = '#28a745';
+            } else if (data.status === 'error') {
+                statusIcon.className = 'fas fa-exclamation-circle';
+                statusIcon.style.color = '#dc3545';
+            }
+            
+            // Показываем результат если есть
+            if (data.result) {
+                document.getElementById('resultOutput').style.display = 'block';
+                document.getElementById('outputContent').textContent = data.result;
+            }
+            
+            // Показываем действия если обработка завершена
+            if (data.status === 'success' || data.status === 'error') {
+                document.getElementById('resultActions').style.display = 'flex';
+                
+                // Останавливаем обновление статуса
+                if (checkInterval) {
+                    clearInterval(checkInterval);
+                }
+            }
+        }
+        
+        function checkStatus() {
+            if (!sessionId) return;
+            
+            fetch(`/status/${sessionId}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateStatus(data);
+                })
+                .catch(error => {
+                    console.error('Error checking status:', error);
+                });
+        }
+        
+        function cleanupSession() {
+            fetch('/cleanup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                window.location.href = '/';
+            })
+            .catch(error => {
+                console.error('Error cleaning up:', error);
+                window.location.href = '/';
+            });
+        }
+        
+        // Начинаем проверку статуса
+        if (sessionId) {
+            checkInterval = setInterval(checkStatus, 2000); // Проверяем каждые 2 секунды
+            checkStatus(); // Первая проверка сразу
+        }
+        
+        // Автоматическая очистка при закрытии страницы
+        window.addEventListener('beforeunload', function() {
+            if (sessionId && checkInterval) {
+                clearInterval(checkInterval);
+            }
+        });
+    </script>
+</body>
+</html>

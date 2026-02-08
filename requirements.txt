@@ -1,0 +1,7 @@
+Flask==3.0.0
+Werkzeug==3.0.1
+gunicorn==21.2.0
+vk-api==11.9.9
+requests==2.31.0
+chardet==5.2.0
+python-dotenv==1.0.0

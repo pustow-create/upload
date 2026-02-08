@@ -1,1 +1,1 @@
-cat Procfile | od -c  # Посмотреть невидимые символы
+web: gunicorn --bind 0.0.0.0:$PORT app:app

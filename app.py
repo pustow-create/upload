@@ -53,14 +53,15 @@ class BatchProcessor:
             traceback.print_exc()
     
     def complete_processing(self):
-        result = """=== РЕЗУЛЬТАТЫ ОБРАБОТКИ ===
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        result = f"""=== РЕЗУЛЬТАТЫ ОБРАБОТКИ ===
 
 ✅ ОБРАБОТКА ЗАВЕРШЕНА
 
 📊 ИНФОРМАЦИЯ:
 • Используется пакетная обработка для больших объемов
-• Каждый пакет содержит 5 фотографий
-• Задержка между пакетами: 10 секунд
+• Каждый пакет содержит {self.batch_size} фотографий
+• Задержка между пакетами: {self.delay_between_batches} секунд
 • ID сессии: {self.session_id}
 
 💡 РЕКОМЕНДАЦИИ:
@@ -68,8 +69,8 @@ class BatchProcessor:
 2. Разбивайте фотографии на несколько CSV файлов
 3. Используйте ZIP архивы для загрузки
 
-🕒 Время завершения: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-=== Готово к использованию ===""".format(self=self, datetime=datetime)
+🕒 Время завершения: {current_time}
+=== Готово к использованию ==="""
         
         upload_statuses[self.session_id]['status'] = 'success'
         upload_statuses[self.session_id]['progress'] = 100
@@ -164,7 +165,7 @@ def upload_files():
 @app.route('/folder_upload', methods=['GET', 'POST'])
 def folder_upload():
     if request.method == 'POST':
-        return redirect(url_for('upload_files'))  # Пока используем обычную загрузку
+        return redirect(url_for('upload_files'))
     return render_template('folder_upload.html')
 
 @app.route('/local_version')
@@ -193,12 +194,12 @@ input("Нажмите Enter для выхода...")'''
         
         # Создаем requirements.txt
         with open(os.path.join(local_dir, 'requirements.txt'), 'w', encoding='utf-8') as f:
-            f.write('vk-api==11.9.9\nrequests==2.31.0\nchardet==5.2.0\n')
+            f.write('vk-api==11.9.9\\nrequests==2.31.0\\nchardet==5.2.0\\n')
         
         # Создаем README.md
-        readme = '# VK Photo Uploader - Локальная версия\n\n'
-        readme += '## Установка\n```bash\npip install -r requirements.txt\n```\n\n'
-        readme += '## Использование\n```bash\npython main.py\n```'
+        readme = '# VK Photo Uploader - Локальная версия\\n\\n'
+        readme += '## Установка\\n```bash\\npip install -r requirements.txt\\n```\\n\\n'
+        readme += '## Использование\\n```bash\\npython main.py\\n```'
         
         with open(os.path.join(local_dir, 'README.md'), 'w', encoding='utf-8') as f:
             f.write(readme)

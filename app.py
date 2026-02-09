@@ -19,17 +19,17 @@ app.config['ALLOWED_EXTENSIONS'] = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'txt', '
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Хранилище статусов (в production используйте Redis/БД)
+# Хранилище статусов
 upload_statuses = {}
 
 class BatchProcessor:
-    """Обработчик пакетной загрузки с поддержкой больших объемов"""
+    """Обработчик пакетной загрузки"""
     
     def __init__(self, session_id, temp_dir):
         self.session_id = session_id
         self.temp_dir = temp_dir
-        self.batch_size = 5  # Обрабатываем по 5 фото за раз
-        self.delay_between_batches = 10  # Задержка между пакетами
+        self.batch_size = 5
+        self.delay_between_batches = 10
         self.current_batch = 0
         self.total_batches = 0
         
@@ -38,39 +38,34 @@ class BatchProcessor:
         try:
             self.update_status('Инициализация обработки...', 5)
             
-            # 1. Проверяем файлы
             if not self.validate_files():
                 return
                 
-            # 2. Читаем CSV
             self.update_status('Чтение CSV файла...', 10)
             photos_data = self.read_csv_data()
             if not photos_data:
                 self.set_error('Нет данных в CSV файле')
                 return
                 
-            # 3. Разбиваем на пакеты
             self.update_status('Подготовка пакетов...', 15)
             batches = self.split_into_batches(photos_data)
             self.total_batches = len(batches)
             
-            # 4. Обрабатываем каждый пакет
             for i, batch in enumerate(batches):
                 self.current_batch = i + 1
+                progress = 15 + (i * (80 // len(batches)))
                 self.update_status(
                     f'Обработка пакета {self.current_batch}/{self.total_batches}...',
-                    15 + (i * (80 // len(batches)))
+                    progress
                 )
                 
                 if not self.process_batch(batch, i):
                     self.set_error(f'Ошибка в пакете {self.current_batch}')
                     return
                     
-                # Задержка между пакетами для избежания лимитов
                 if i < len(batches) - 1:
                     time.sleep(self.delay_between_batches)
             
-            # 5. Завершение
             self.complete_processing()
             
         except Exception as e:
@@ -110,10 +105,8 @@ class BatchProcessor:
                 description = parts[1].strip().strip('"\'') if len(parts) > 1 else ''
                 comment_files_str = parts[2].strip().strip('"\'') if len(parts) > 2 else ''
                 
-                # Парсим файлы для комментариев
                 comment_files = []
                 if comment_files_str:
-                    # Поддержка разных форматов разделителей
                     if '; ' in comment_files_str:
                         comment_files = [f.strip().strip('"\'') for f in comment_files_str.split('; ')]
                     elif ';' in comment_files_str:
@@ -145,12 +138,10 @@ class BatchProcessor:
     def process_batch(self, batch, batch_index):
         """Обработка одного пакета"""
         try:
-            # Имитация обработки (в реальном приложении здесь будет вызов VK API)
             for item in batch:
                 item['success'] = True
                 item['processed_at'] = datetime.now().isoformat()
                 
-            # Сохраняем прогресс
             self.save_progress(batch_index)
             return True
             
@@ -158,7 +149,7 @@ class BatchProcessor:
             return False
     
     def save_progress(self, batch_index):
-        """Сохранение прогресса обработки"""
+        """Сохранение прогресса"""
         progress_file = os.path.join(self.temp_dir, f'progress_{batch_index}.json')
         with open(progress_file, 'w', encoding='utf-8') as f:
             json.dump({
@@ -177,13 +168,12 @@ class BatchProcessor:
         upload_statuses[self.session_id]['result'] = result
         upload_statuses[self.session_id]['completed_at'] = datetime.now().isoformat()
         
-        # Создаем файл с результатами
         result_file = os.path.join(self.temp_dir, 'result.txt')
         with open(result_file, 'w', encoding='utf-8') as f:
             f.write(result)
     
     def generate_result(self):
-        """Генерация отчета о результатах"""
+        """Генерация отчета"""
         return f"""=== РЕЗУЛЬТАТЫ ОБРАБОТКИ ===
 
 ✅ ОБРАБОТКА ЗАВЕРШЕНА
@@ -216,7 +206,6 @@ class BatchProcessor:
         upload_statuses[self.session_id]['status'] = 'error'
         upload_statuses[self.session_id]['message'] = error_message
 
-# Маршруты Flask
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -224,16 +213,13 @@ def index():
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_files():
     if request.method == 'POST':
-        # Создаем сессию
         session_id = str(uuid.uuid4())
         session['upload_id'] = session_id
         session['upload_start'] = datetime.now().isoformat()
         
-        # Создаем временную папку
         temp_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
         os.makedirs(temp_dir, exist_ok=True)
         
-        # Инициализируем статус
         upload_statuses[session_id] = {
             'status': 'processing',
             'message': 'Загрузка файлов...',
@@ -245,10 +231,8 @@ def upload_files():
         }
         
         try:
-            # Обработка загруженных файлов
             files_saved = 0
             
-            # 1. Конфигурационный файл
             if 'config_file' in request.files:
                 config_file = request.files['config_file']
                 if config_file and config_file.filename:
@@ -256,7 +240,6 @@ def upload_files():
                     config_file.save(config_path)
                     files_saved += 1
             
-            # 2. CSV файл
             if 'csv_file' in request.files:
                 csv_file = request.files['csv_file']
                 if csv_file and csv_file.filename:
@@ -264,14 +247,11 @@ def upload_files():
                     csv_file.save(csv_path)
                     files_saved += 1
             
-            # 3. Фотографии или ZIP архив
             if 'photo_files' in request.files:
                 photo_files = request.files.getlist('photo_files')
                 for photo in photo_files:
                     if photo and photo.filename:
-                        # Проверяем, не ZIP ли это
                         if photo.filename.lower().endswith('.zip'):
-                            # Распаковываем ZIP
                             zip_path = os.path.join(temp_dir, 'photos.zip')
                             photo.save(zip_path)
                             
@@ -280,7 +260,6 @@ def upload_files():
                             
                             files_saved += len(zip_ref.namelist())
                         else:
-                            # Обычный файл
                             filename = secure_filename(photo.filename)
                             photo_path = os.path.join(temp_dir, filename)
                             photo.save(photo_path)
@@ -289,12 +268,11 @@ def upload_files():
             upload_statuses[session_id]['files_received'] = files_saved
             upload_statuses[session_id]['progress'] = 10
             
-            if files_saved < 2:  # config + csv минимум
+            if files_saved < 2:
                 upload_statuses[session_id]['status'] = 'error'
                 upload_statuses[session_id]['message'] = 'Недостаточно файлов'
                 return redirect(url_for('result'))
             
-            # Запускаем обработку в фоновом потоке
             processor = BatchProcessor(session_id, temp_dir)
             thread = threading.Thread(target=processor.process)
             thread.daemon = True
@@ -311,7 +289,6 @@ def upload_files():
 
 @app.route('/folder_upload', methods=['GET', 'POST'])
 def folder_upload():
-    """Загрузка всей папки как ZIP архива"""
     if request.method == 'POST':
         session_id = str(uuid.uuid4())
         session['upload_id'] = session_id
@@ -331,25 +308,21 @@ def folder_upload():
         }
         
         try:
-            # Загрузка ZIP архива
             if 'folder_zip' in request.files:
                 zip_file = request.files['folder_zip']
                 if zip_file and zip_file.filename.lower().endswith('.zip'):
                     zip_path = os.path.join(temp_dir, 'folder.zip')
                     zip_file.save(zip_path)
                     
-                    # Распаковываем
                     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                         zip_ref.extractall(temp_dir)
                     
-                    # Ищем config.txt и photos.csv
                     extracted_files = []
                     for root, dirs, files in os.walk(temp_dir):
                         for file in files:
                             extracted_files.append(file)
                             
                             if file.lower() == 'config.txt':
-                                # Перемещаем в корень
                                 src = os.path.join(root, file)
                                 dst = os.path.join(temp_dir, 'config.txt')
                                 if src != dst:
@@ -364,7 +337,6 @@ def folder_upload():
                     upload_statuses[session_id]['files_received'] = len(extracted_files)
                     upload_statuses[session_id]['progress'] = 20
                     
-                    # Проверяем обязательные файлы
                     if not os.path.exists(os.path.join(temp_dir, 'config.txt')):
                         upload_statuses[session_id]['status'] = 'error'
                         upload_statuses[session_id]['message'] = 'В архиве нет config.txt'
@@ -375,7 +347,6 @@ def folder_upload():
                         upload_statuses[session_id]['message'] = 'В архиве нет photos.csv'
                         return redirect(url_for('result'))
                     
-                    # Запускаем обработку
                     processor = BatchProcessor(session_id, temp_dir)
                     thread = threading.Thread(target=processor.process)
                     thread.daemon = True
@@ -400,25 +371,17 @@ def folder_upload():
 
 @app.route('/local_version')
 def local_version():
-    """Страница для скачивания локальной версии"""
     return render_template('local_version.html')
 
 @app.route('/download_local_version')
 def download_local_version():
-    """Создание ZIP архива с локальной версией программы"""
     try:
-        # Создаем временную папку
         temp_dir = tempfile.mkdtemp()
         local_dir = os.path.join(temp_dir, 'vk-photo-uploader-local')
         os.makedirs(local_dir, exist_ok=True)
         
-        # Создаем файлы для локальной версии
-        
-        # 1. main.py (полная версия для локального запуска)
-        main_py_content = '''# ЛОКАЛЬНАЯ ВЕРСИЯ VK Photo Uploader
-# Для работы с большими объемами фотографий
-
-import vk_api
+        # 1. main.py
+        main_py_content = '''import vk_api
 import os
 import sys
 import time
@@ -430,36 +393,34 @@ import zipfile
 from pathlib import Path
 
 class VKPhotoUploader:
-    def __init__(self, config_file='config.txt'):
+    def __init__(self, config_file="config.txt"):
         self.config_file = config_file
         self.vk = None
         self.upload = None
-        self.batch_size = 10  # Фото в пакете
-        self.delay_between_batches = 15  # Секунд между пакетами
+        self.batch_size = 10
+        self.delay_between_batches = 15
         self.load_config()
     
     def load_config(self):
-        """Загрузка конфигурации"""
         if not os.path.exists(self.config_file):
             print(f"Файл конфигурации {self.config_file} не найден.")
             self.create_config()
             sys.exit(0)
             
         config = {}
-        with open(self.config_file, 'r', encoding='utf-8') as f:
+        with open(self.config_file, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#'):
-                    if '=' in line:
-                        key, value = line.split('=', 1)
+                if line and not line.startswith("#"):
+                    if "=" in line:
+                        key, value = line.split("=", 1)
                         config[key.strip()] = value.strip()
         
-        self.group_id = config.get('group_id', '').replace('-', '')
-        self.album_id = config.get('album_id', '')
-        self.access_token = config.get('access_token', '')
-        self.owner_id = config.get('owner_id', f"-{self.group_id}" if self.group_id else '')
+        self.group_id = config.get("group_id", "").replace("-", "")
+        self.album_id = config.get("album_id", "")
+        self.access_token = config.get("access_token", "")
+        self.owner_id = config.get("owner_id", f"-{self.group_id}" if self.group_id else "")
         
-        # Валидация
         if not self.access_token:
             print("Ошибка: access_token не указан в config.txt")
             sys.exit(1)
@@ -468,7 +429,6 @@ class VKPhotoUploader:
             sys.exit(1)
     
     def create_config(self):
-        """Создание шаблона конфигурации"""
         config_template = """# Конфигурация для загрузки фотографий в ВКонтакте
 # Получить токен: https://vk.com/dev/implicit_flow_user
 
@@ -477,12 +437,11 @@ group_id=123456789
 album_id=123456789
 # owner_id=-123456789
 """
-        with open(self.config_file, 'w', encoding='utf-8') as f:
+        with open(self.config_file, "w", encoding="utf-8") as f:
             f.write(config_template)
         print("Создан config.txt. Заполните его и запустите программу снова.")
     
     def authenticate(self):
-        """Аутентификация"""
         try:
             session = vk_api.VkApi(token=self.access_token)
             self.vk = session.get_api()
@@ -492,78 +451,71 @@ album_id=123456789
             print(f"✗ Ошибка аутентификации: {e}")
             sys.exit(1)
     
-    def find_photos_in_folder(self, folder_path='.'):
-        """Поиск всех фотографий в папке"""
-        extensions = ('*.jpg', '*.jpeg', '*.png', '*.gif', '*.bmp')
+    def find_photos_in_folder(self, folder_path="."):
+        extensions = ("*.jpg", "*.jpeg", "*.png", "*.gif", "*.bmp")
         photos = []
         for ext in extensions:
             photos.extend(glob.glob(os.path.join(folder_path, ext)))
         return sorted(photos)
     
-    def create_photos_csv(self, folder_path='.', output_file='photos.csv'):
-        """Автоматическое создание CSV файла из фотографий в папке"""
+    def create_photos_csv(self, folder_path=".", output_file="photos.csv"):
         photos = self.find_photos_in_folder(folder_path)
         
         if not photos:
             print("В папке не найдено фотографий")
             return False
         
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write('sep=|\n')
-            f.write('Файл изображения|Описание|Файлы в комментариях\\n')
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write("sep=|\\n")
+            f.write("Файл изображения|Описание|Файлы в комментариях\\n")
             
             for photo in photos:
                 filename = os.path.basename(photo)
-                # Ищем похожие фото для комментариев
                 base_name = os.path.splitext(filename)[0]
                 similar_photos = [p for p in photos if p != photo and base_name in os.path.basename(p)]
                 
                 if similar_photos:
-                    # Берем максимум 10 похожих фото
-                    comment_files = '; '.join([os.path.basename(p) for p in similar_photos[:10]])
-                    f.write(f'{filename}|Описание для {filename}|{comment_files}\\n')
+                    comment_files = "; ".join([os.path.basename(p) for p in similar_photos[:10]])
+                    f.write(f"{filename}|Описание для {filename}|{comment_files}\\n")
                 else:
-                    f.write(f'{filename}|Описание для {filename}|\\n')
+                    f.write(f"{filename}|Описание для {filename}|\\n")
         
         print(f"✓ Создан файл {output_file} с {len(photos)} записями")
         return True
     
-    def read_csv_data(self, csv_file='photos.csv'):
-        """Чтение CSV с поддержкой больших файлов"""
+    def read_csv_data(self, csv_file="photos.csv"):
         photos_data = []
         
         try:
-            with open(csv_file, 'r', encoding='utf-8') as f:
+            with open(csv_file, "r", encoding="utf-8") as f:
                 lines = f.readlines()
             
-            # Пропускаем заголовки
             start_idx = 0
             for i, line in enumerate(lines):
-                if 'sep=' in line.lower():
+                if "sep=" in line.lower():
                     continue
-                if 'файл изображения' in line.lower() or 'file image' in line.lower():
+                if "файл изображения" in line.lower() or "file image" in line.lower():
                     continue
                 start_idx = i
                 break
             
             for line in lines[start_idx:]:
                 line = line.strip()
-                if not line or '|' not in line:
+                if not line or "|" not in line:
                     continue
                 
-                parts = line.split('|', 2)
+                parts = line.split("|", 2)
                 main_photo = parts[0].strip().strip('"\\'')
                 
                 if not main_photo:
                     continue
                 
-                description = parts[1].strip().strip('"\\'') if len(parts) > 1 else ''
-                comment_files_str = parts[2].strip().strip('"\\'') if len(parts) > 2 else ''
+                description = parts[1].strip().strip('"\\'') if len(parts) > 1 else ""
+                comment_files_str = parts[2].strip().strip('"\\'') if len(parts) > 2 else ""
                 
-                # Парсим файлы для комментариев
                 comment_files = []
                 if comment_files_str:
-                    for separator in ('; ', ';', ', ', ','):
+                    for separator in ("; ", ";", ", ", ","):
                         if separator in comment_files_str:
                             comment_files = [f.strip().strip('"\\'') for f in comment_files_str.split(separator)]
                             break
@@ -571,11 +523,11 @@ album_id=123456789
                         comment_files = [comment_files_str]
                 
                 photos_data.append({
-                    'main_photo': main_photo,
-                    'description': description,
-                    'comment_files': [f for f in comment_files if f],
-                    'processed': False,
-                    'error': None
+                    "main_photo": main_photo,
+                    "description": description,
+                    "comment_files": [f for f in comment_files if f],
+                    "processed": False,
+                    "error": None
                 })
             
         except Exception as e:
@@ -584,12 +536,10 @@ album_id=123456789
         
         return photos_data
     
-    def process_large_dataset(self, photos_data, folder_path='.'):
-        """Обработка больших наборов данных с пакетированием"""
+    def process_large_dataset(self, photos_data, folder_path="."):
         total = len(photos_data)
         print(f"Найдено {total} записей для обработки")
         
-        # Разбиваем на пакеты
         batches = [photos_data[i:i + self.batch_size] 
                   for i in range(0, len(photos_data), self.batch_size)]
         
@@ -597,35 +547,32 @@ album_id=123456789
         failed = 0
         
         for batch_num, batch in enumerate(batches, 1):
-            print(f"\\n{'='*60}")
+            print(f"\\n{"="*60}")
             print(f"ПАКЕТ {batch_num}/{len(batches)} ({len(batch)} фото)")
-            print(f"{'='*60}")
+            print(f"{"="*60}")
             
             batch_successful = 0
             batch_failed = 0
             
             for item in batch:
                 try:
-                    print(f"Обработка: {item['main_photo']}")
-                    # Здесь будет реальная загрузка в VK
-                    # Пока что имитируем успешную обработку
-                    time.sleep(0.5)  # Имитация задержки
+                    print(f"Обработка: {item["main_photo"]}")
+                    time.sleep(0.5)
                     
-                    item['processed'] = True
+                    item["processed"] = True
                     batch_successful += 1
-                    print(f"✓ Успешно: {item['main_photo']}")
+                    print(f"✓ Успешно: {item["main_photo"]}")
                     
                 except Exception as e:
-                    item['error'] = str(e)
+                    item["error"] = str(e)
                     batch_failed += 1
-                    print(f"✗ Ошибка: {item['main_photo']} - {e}")
+                    print(f"✗ Ошибка: {item["main_photo"]} - {e}")
             
             successful += batch_successful
             failed += batch_failed
             
             print(f"Итог пакета: {batch_successful} успешно, {batch_failed} с ошибками")
             
-            # Задержка между пакетами
             if batch_num < len(batches):
                 print(f"⏳ Ожидание {self.delay_between_batches} сек перед следующим пакетом...")
                 time.sleep(self.delay_between_batches)
@@ -633,7 +580,6 @@ album_id=123456789
         return successful, failed
     
     def generate_report(self, successful, failed, total):
-        """Генерация отчета"""
         report = f"""=== ОТЧЕТ ОБ ОБРАБОТКЕ ===
 
 Общее количество: {total}
@@ -641,16 +587,16 @@ album_id=123456789
 С ошибками: {failed}
 Процент успеха: {(successful/total*100):.1f}%
 
-Время: {time.strftime('%Y-%m-%d %H:%M:%S')}
+Время: {time.strftime("%Y-%m-%d %H:%M:%S")}
 """
         
-        report_file = 'processing_report.txt'
-        with open(report_file, 'w', encoding='utf-8') as f:
+        report_file = "processing_report.txt"
+        with open(report_file, "w", encoding="utf-8") as f:
             f.write(report)
         
-        print(f"\\n{'='*60}")
+        print(f"\\n{"="*60}")
         print("ОБРАБОТКА ЗАВЕРШЕНА!")
-        print(f"{'='*60}")
+        print(f"{"="*60}")
         print(f"✅ Успешно: {successful}")
         print(f"❌ С ошибками: {failed}")
         print(f"📊 Всего: {total}")
@@ -658,8 +604,7 @@ album_id=123456789
         
         return report
     
-    def run(self, folder_path='.'):
-        """Основной запуск"""
+    def run(self, folder_path="."):
         print("="*60)
         print("VK Photo Uploader - Локальная версия")
         print("Для больших объемов фотографий")
@@ -668,37 +613,31 @@ album_id=123456789
         print(f"\\nТекущая папка: {os.getcwd()}")
         print(f"Папка с фото: {folder_path}")
         
-        # Создаем CSV если его нет
-        if not os.path.exists('photos.csv'):
+        if not os.path.exists("photos.csv"):
             print("\\nФайл photos.csv не найден")
             print("Создаю автоматически из фотографий в папке...")
             if not self.create_photos_csv(folder_path):
                 return
         
-        # Аутентификация
         self.authenticate()
         
-        # Чтение данных
-        photos_data = self.read_csv_data('photos.csv')
+        photos_data = self.read_csv_data("photos.csv")
         if not photos_data:
             print("Нет данных для обработки")
             return
         
-        # Обработка
         successful, failed = self.process_large_dataset(photos_data, folder_path)
         
-        # Отчет
         self.generate_report(successful, failed, len(photos_data))
 
 def main():
-    """Точка входа"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='VK Photo Uploader - Локальная версия')
-    parser.add_argument('--folder', '-f', default='.', help='Папка с фотографиями')
-    parser.add_argument('--config', '-c', default='config.txt', help='Конфигурационный файл')
-    parser.add_argument('--batch', '-b', type=int, default=10, help='Размер пакета')
-    parser.add_argument('--delay', '-d', type=int, default=15, help='Задержка между пакетами')
+    parser = argparse.ArgumentParser(description="VK Photo Uploader - Локальная версия")
+    parser.add_argument("--folder", "-f", default=".", help="Папка с фотографиями")
+    parser.add_argument("--config", "-c", default="config.txt", help="Конфигурационный файл")
+    parser.add_argument("--batch", "-b", type=int, default=10, help="Размер пакета")
+    parser.add_argument("--delay", "-d", type=int, default=15, help="Задержка между пакетами")
     
     args = parser.parse_args()
     
@@ -731,14 +670,12 @@ if __name__ == "__main__":
         readme_content = '''# VK Photo Uploader - Локальная версия
 
 ## Возможности
-- Загрузка больших объемов фотографий (тысячи фото)
-- Пакетная обработка с настраиваемыми параметрами
-- Автоматическое создание CSV файла из фотографий в папке
+- Загрузка больших объемов фотографий
+- Пакетная обработка
+- Автоматическое создание CSV файла
 - Поддержка ZIP архивов
 - Отчет об обработке
 
 ## Установка
 ```bash
-# 1. Установите Python 3.8+
-# 2. Установите зависимости:
 pip install -r requirements.txt

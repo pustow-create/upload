@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Загрузка папки - VK Photo Uploader</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-folder-open"></i> Загрузка папки</h1>
+            <p class="subtitle">Временно недоступно. Используйте обычную загрузку файлов</p>
+        </header>
+        
+        <main class="main-content">
+            <div class="card">
+                <div class="back-link">
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                        <i class="fas fa-home"></i> На главную
+                    </a>
+                    <a href="{{ url_for('upload_files') }}" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Обычная загрузка
+                    </a>
+                </div>
+                
+                <div style="text-align: center; padding: 40px 20px;">
+                    <i class="fas fa-tools" style="font-size: 4rem; color: #ffc107; margin-bottom: 20px;"></i>
+                    <h2>Функция в разработке</h2>
+                    <p style="font-size: 1.1rem; margin: 20px 0; color: #666;">
+                        Загрузка целых папок временно недоступна на бесплатном плане Render.
+                    </p>
+                    <p style="margin: 20px 0;">
+                        Пожалуйста, используйте:
+                    </p>
+                    <div style="display: flex; justify-content: center; gap: 20px; margin: 30px 0; flex-wrap: wrap;">
+                        <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px; min-width: 200px;">
+                            <i class="fas fa-file-upload" style="font-size: 2rem; color: #667eea; margin-bottom: 10px;"></i>
+                            <h3>Обычная загрузка</h3>
+                            <p>Выберите файлы по одному</p>
+                            <a href="{{ url_for('upload_files') }}" class="btn" style="margin-top: 10px;">
+                                Перейти
+                            </a>
+                        </div>
+                        <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px; min-width: 200px;">
+                            <i class="fas fa-download" style="font-size: 2rem; color: #28a745; margin-bottom: 10px;"></i>
+                            <h3>Локальная версия</h3>
+                            <p>Для больших объемов</p>
+                            <a href="{{ url_for('local_version') }}" class="btn btn-success" style="margin-top: 10px;">
+                                Скачать
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="footer">
+            <p>Для обработки тысяч фотографий используйте локальную версию</p>
+        </footer>
+    </div>
+</body>
+</html>

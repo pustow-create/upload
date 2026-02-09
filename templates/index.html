@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VK Photo Uploader</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-cloud-upload-alt"></i> VK Photo Uploader</h1>
+            <p class="subtitle">Веб-интерфейс для загрузки фотографий в ВКонтакте</p>
+        </header>
+        
+        <main class="main-content">
+            <div class="card">
+                <h2><i class="fas fa-info-circle"></i> О программе</h2>
+                <p>Это веб-приложение позволяет загружать фотографии в альбом ВКонтакте с использованием CSV файла для структурирования данных.</p>
+                
+                <div class="features">
+                    <div class="feature">
+                        <i class="fas fa-file-alt"></i>
+                        <h3>Конфигурация</h3>
+                        <p>Загрузите config.txt с настройками доступа</p>
+                    </div>
+                    <div class="feature">
+                        <i class="fas fa-table"></i>
+                        <h3>CSV файл</h3>
+                        <p>photos.csv с описанием фото и комментариев</p>
+                    </div>
+                    <div class="feature">
+                        <i class="fas fa-images"></i>
+                        <h3>Фотографии</h3>
+                        <p>Все изображения для загрузки</p>
+                    </div>
+                </div>
+                
+                <div class="instructions">
+                    <h3><i class="fas fa-list-ol"></i> Как использовать:</h3>
+                    <ol>
+                        <li>Подготовьте файлы (config.txt, photos.csv, фотографии)</li>
+                        <li>Загрузите их через форму</li>
+                        <li>Дождитесь обработки</li>
+                        <li>Получите результат</li>
+                    </ol>
+                </div>
+                
+                <div class="cta">
+                    <a href="{{ url_for('upload_files') }}" class="btn btn-primary">
+                        <i class="fas fa-upload"></i> Начать загрузку
+                    </a>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="footer">
+            <p>VK Photo Uploader Web &copy; 2024</p>
+            <p>Работает на Flask | Развернуто на Render</p>
+        </footer>
+    </div>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

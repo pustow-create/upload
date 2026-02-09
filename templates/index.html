@@ -11,57 +11,98 @@
     <div class="container">
         <header class="header">
             <h1><i class="fas fa-cloud-upload-alt"></i> VK Photo Uploader</h1>
-            <p class="subtitle">Загрузка фотографий в альбом ВКонтакте без ограничений</p>
+            <p class="subtitle">Без загрузки фотографий на сервер - 100% локальная обработка</p>
         </header>
         
         <main class="main-content">
             <div class="card">
-                <h2><i class="fas fa-info-circle"></i> Новая архитектура - без ограничений!</h2>
-                <p>Теперь фотографии <strong>НЕ загружаются на сервер</strong>. Вы получаете инструкции и скрипт для локального выполнения на своем компьютере.</p>
+                <h2><i class="fas fa-info-circle"></i> Новая концепция</h2>
+                <p>Мы обошли ограничения Render! Теперь программа работает так:</p>
                 
-                <div class="features" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 30px 0;">
-                    <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                        <i class="fas fa-laptop" style="font-size: 2rem; color: #667eea; margin-bottom: 15px;"></i>
-                        <h3>Локальное выполнение</h3>
-                        <p>Фото остаются на вашем компьютере</p>
+                <div class="features">
+                    <div class="feature">
+                        <i class="fas fa-keyboard"></i>
+                        <h3>Ввод текста</h3>
+                        <p>Вставьте содержимое config.txt и photos.csv в форму</p>
                     </div>
-                    <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                        <i class="fas fa-infinity" style="font-size: 2rem; color: #28a745; margin-bottom: 15px;"></i>
-                        <h3>Без ограничений</h3>
-                        <p>Тысячи фотографий без проблем</p>
+                    <div class="feature">
+                        <i class="fas fa-code"></i>
+                        <h3>Генерация скрипта</h3>
+                        <p>Скачайте готовый Python скрипт для локального запуска</p>
                     </div>
-                    <div style="text-align: center; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                        <i class="fas fa-shield-alt" style="font-size: 2rem; color: #ffc107; margin-bottom: 15px;"></i>
-                        <h3>Безопасность</h3>
-                        <p>Токены и фото не покидают ваш ПК</p>
+                    <div class="feature">
+                        <i class="fas fa-desktop"></i>
+                        <h3>Локальный запуск</h3>
+                        <p>Запустите скрипт на своем компьютере без ограничений</p>
                     </div>
                 </div>
                 
-                <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 30px 0;">
-                    <h3><i class="fas fa-list-ol"></i> Как работает:</h3>
-                    <ol style="margin-left: 20px; margin-top: 15px;">
-                        <li>Настройте конфигурацию на сайте</li>
-                        <li>Скачайте готовый скрипт</li>
-                        <li>Запустите скрипт на своем компьютере</li>
-                        <li>Скрипт загрузит фото напрямую в VK</li>
-                        <li>Нет ограничений по объему!</li>
+                <div class="instructions">
+                    <h3><i class="fas fa-list-ol"></i> Как работать:</h3>
+                    <ol>
+                        <li>Подготовьте файлы config.txt и photos.csv на своем компьютере</li>
+                        <li>Откройте их в текстовом редакторе</li>
+                        <li>Скопируйте содержимое и вставьте в форму на сайте</li>
+                        <li>Получите готовый скрипт для загрузки</li>
+                        <li>Запустите скрипт локально на своем компьютере</li>
                     </ol>
                 </div>
                 
-                <div style="text-align: center; margin-top: 30px;">
-                    <a href="{{ url_for('configure') }}" class="btn btn-large" style="margin: 10px;">
-                        <i class="fas fa-cog"></i> Начать настройку
+                <div class="advantages">
+                    <h3><i class="fas fa-check-circle"></i> Преимущества:</h3>
+                    <ul>
+                        <li>✅ Без ограничений по количеству фотографий</li>
+                        <li>✅ Без ограничений по размеру файлов</li>
+                        <li>✅ Не нужно загружать фотографии на сервер</li>
+                        <li>✅ Полная конфиденциальность (файлы не покидают ваш компьютер)</li>
+                        <li>✅ Работает с тысячами фотографий</li>
+                    </ul>
+                </div>
+                
+                <div class="cta">
+                    <a href="{{ url_for('prepare_files') }}" class="btn btn-primary btn-large">
+                        <i class="fas fa-play"></i> Начать работу
                     </a>
-                    <a href="{{ url_for('local_version') }}" class="btn btn-success btn-large" style="margin: 10px;">
-                        <i class="fas fa-download"></i> Скачать локальную версию
-                    </a>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h2><i class="fas fa-file-alt"></i> Подготовьте файлы:</h2>
+                
+                <div class="file-example">
+                    <h3><i class="fas fa-cog"></i> config.txt</h3>
+                    <pre># Конфигурация для загрузки фотографий в ВКонтакте
+# Получить токен: https://vk.com/dev/implicit_flow_user
+
+access_token=ВАШ_ТОКЕН_ЗДЕСЬ
+
+# ID группы (если загружаем в группу)
+group_id=190298260
+
+# ID альбома (обязательно)
+album_id=310013250
+
+# Owner ID (автоматически определяется)
+# owner_id=-190298260</pre>
+                </div>
+                
+                <div class="file-example">
+                    <h3><i class="fas fa-table"></i> photos.csv</h3>
+                    <pre>sep=|
+Файл изображения|Описание|Файлы в комментариях
+485.JPG|что-то там малахитово-азуритовое из Каменушки|485.JPG;486.JPG
+486.JPG|что-то там малахитово-азуритовое из Каменушки 1000 000|616.JPG
+579.JPG|Описание фото 579||</pre>
                 </div>
             </div>
         </main>
         
         <footer class="footer">
-            <p>VK Photo Uploader &copy; 2024 | Фотографии загружаются напрямую с вашего компьютера</p>
+            <p>VK Photo Uploader &copy; 2024 | Работает на Flask | Render Free Tier</p>
+            <p>Фотографии не загружаются на сервер - 100% локальная обработка</p>
         </footer>
     </div>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>
 </html>

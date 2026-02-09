@@ -3,135 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Загрузка файлов - VK Photo Uploader</title>
+    <title>Загрузка данных - VK Photo Uploader</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; }
+        .subtitle { color: #7f8c8d; margin-bottom: 20px; }
+        
+        .error { background: #ffebee; color: #c62828; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+        
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #2c3e50; }
+        textarea { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 5px; 
+                   font-family: monospace; min-height: 150px; resize: vertical; }
+        textarea:focus { outline: none; border-color: #4a76a8; }
+        
+        .form-hint { font-size: 0.9em; color: #666; margin-top: 5px; }
+        
+        .btn { padding: 12px 24px; background: #4a76a8; color: white; border: none; 
+               border-radius: 5px; font-size: 1em; cursor: pointer; font-weight: bold; }
+        .btn:hover { background: #3a6690; }
+        .btn-secondary { background: #6c757d; }
+        .btn-secondary:hover { background: #5a6268; }
+        
+        .buttons { display: flex; gap: 10px; margin-top: 30px; }
+        
+        .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .warning h3 { color: #856404; margin-bottom: 10px; }
+    </style>
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1><i class="fas fa-file-upload"></i> Загрузка файлов</h1>
-            <p class="subtitle">Загрузите все необходимые файлы для обработки</p>
+            <h1>📝 Подготовка данных</h1>
+            <p class="subtitle">Вставьте содержимое ваших файлов</p>
         </header>
         
-        <main class="main-content">
-            <div class="card">
-                <div class="back-link">
-                    <a href="{{ url_for('index') }}" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i> На главную
-                    </a>
+        <div class="card">
+            {% if error %}
+            <div class="error">
+                ❌ {{ error }}
+            </div>
+            {% endif %}
+            
+            <div class="warning">
+                <h3>⚠️ Важно!</h3>
+                <p>Фотографии должны быть доступны из интернета (загружены на внешний хостинг) или 
+                   программа должна запускаться с компьютера, где лежат фотографии.</p>
+                <p>На Render Free Tier мы не можем загружать файлы больше 1MB.</p>
+            </div>
+            
+            <form method="POST">
+                <div class="form-group">
+                    <label for="config_content">📄 Содержимое config.txt:</label>
+                    <textarea id="config_content" name="config_content" 
+                              placeholder="# Конфигурация для загрузки фотографий в ВКонтакте
+access_token=ВАШ_ТОКЕН_ЗДЕСЬ
+album_id=310013250
+group_id=190298260" required></textarea>
+                    <div class="form-hint">
+                        Обязательные поля: access_token, album_id
+                    </div>
                 </div>
                 
-                <form id="uploadForm" method="POST" enctype="multipart/form-data" action="{{ url_for('upload_files') }}">
-                    <div class="form-section">
-                        <h2><i class="fas fa-cog"></i> 1. Конфигурационный файл</h2>
-                        <p class="form-description">Файл config.txt с настройками доступа к ВКонтакте</p>
-                        <div class="file-upload">
-                            <label for="config_file" class="file-label">
-                                <i class="fas fa-file-text"></i>
-                                <span id="configFileName">Выберите config.txt</span>
-                                <input type="file" id="config_file" name="config_file" accept=".txt" required>
-                            </label>
-                            <div class="file-hint">
-                                <i class="fas fa-info-circle"></i> Обязательный файл с токеном доступа
-                            </div>
-                        </div>
+                <div class="form-group">
+                    <label for="csv_content">📊 Содержимое photos.csv:</label>
+                    <textarea id="csv_content" name="csv_content" 
+                              placeholder="sep=|
+Файл изображения|Описание|Файлы в комментариях
+485.JPG|что-то там малахитово-азуритовое из Каменушки|485.JPG;486.JPG
+486.JPG|что-то там малахитово-азуритовое из Каменушки 1000 000|616.JPG" required></textarea>
+                    <div class="form-hint">
+                        Формат: название файла | описание | файлы для комментариев (через ;)
                     </div>
-                    
-                    <div class="form-section">
-                        <h2><i class="fas fa-file-csv"></i> 2. CSV файл с данными</h2>
-                        <p class="form-description">Файл photos.csv с информацией о фотографиях</p>
-                        <div class="file-upload">
-                            <label for="csv_file" class="file-label">
-                                <i class="fas fa-table"></i>
-                                <span id="csvFileName">Выберите photos.csv</span>
-                                <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
-                            </label>
-                            <div class="file-hint">
-                                <i class="fas fa-info-circle"></i> Обязательный файл с данными для загрузки
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="form-section">
-                        <h2><i class="fas fa-images"></i> 3. Фотографии</h2>
-                        <p class="form-description">Все изображения, упомянутые в CSV файле</p>
-                        <div class="file-upload">
-                            <label for="photo_files" class="file-label">
-                                <i class="fas fa-image"></i>
-                                <span id="photoFilesName">Выберите фотографии</span>
-                                <input type="file" id="photo_files" name="photo_files" accept=".jpg,.jpeg,.png,.gif,.bmp" multiple required>
-                            </label>
-                            <div class="file-hint">
-                                <i class="fas fa-info-circle"></i> Выберите все необходимые изображения (можно несколько)
-                            </div>
-                        </div>
-                        <div id="fileList" class="file-list"></div>
-                    </div>
-                    
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary btn-large" id="submitBtn">
-                            <i class="fas fa-rocket"></i> Начать обработку
-                        </button>
-                        <div id="loading" class="loading" style="display: none;">
-                            <div class="spinner"></div>
-                            <span>Подготовка к загрузке...</span>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </main>
-        
-        <footer class="footer">
-            <p>Убедитесь, что все файлы находятся в одной папке перед загрузкой</p>
-        </footer>
+                </div>
+                
+                <div class="buttons">
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                        ← Назад
+                    </a>
+                    <button type="submit" class="btn">
+                        🚀 Запустить обработку
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-    
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-    <script>
-        // Обработчики для отображения имен файлов
-        document.getElementById('config_file').addEventListener('change', function(e) {
-            const fileName = e.target.files[0] ? e.target.files[0].name : 'Выберите config.txt';
-            document.getElementById('configFileName').textContent = fileName;
-        });
-        
-        document.getElementById('csv_file').addEventListener('change', function(e) {
-            const fileName = e.target.files[0] ? e.target.files[0].name : 'Выберите photos.csv';
-            document.getElementById('csvFileName').textContent = fileName;
-        });
-        
-        document.getElementById('photo_files').addEventListener('change', function(e) {
-            const fileList = document.getElementById('fileList');
-            fileList.innerHTML = '';
-            
-            if (e.target.files.length > 0) {
-                const countSpan = document.getElementById('photoFilesName');
-                countSpan.textContent = `Выбрано ${e.target.files.length} файлов`;
-                
-                const list = document.createElement('ul');
-                for (let i = 0; i < Math.min(e.target.files.length, 10); i++) {
-                    const li = document.createElement('li');
-                    li.textContent = e.target.files[i].name;
-                    list.appendChild(li);
-                }
-                
-                if (e.target.files.length > 10) {
-                    const li = document.createElement('li');
-                    li.textContent = `... и еще ${e.target.files.length - 10} файлов`;
-                    list.appendChild(li);
-                }
-                
-                fileList.appendChild(list);
-            } else {
-                document.getElementById('photoFilesName').textContent = 'Выберите фотографии';
-            }
-        });
-        
-        // Обработчик отправки формы
-        document.getElementById('uploadForm').addEventListener('submit', function() {
-            document.getElementById('submitBtn').style.display = 'none';
-            document.getElementById('loading').style.display = 'flex';
-        });
-    </script>
 </body>
 </html>

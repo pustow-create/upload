@@ -2,172 +2,202 @@
 document.addEventListener('DOMContentLoaded', function() {
     console.log('VK Photo Uploader loaded');
     
-    // Обработка выбора файлов
-    const fileInputs = document.querySelectorAll('input[type="file"]');
+    // Проверка поддержки Clipboard API
+    if (navigator.clipboard) {
+        console.log('Clipboard API доступен');
+    }
     
-    fileInputs.forEach(input => {
-        input.addEventListener('change', function(e) {
-            const fileName = e.target.files[0] 
-                ? e.target.files[0].name 
-                : 'Выберите файл';
+    // Подсчет символов в textarea
+    const textareas = document.querySelectorAll('textarea');
+    textareas.forEach(textarea => {
+        const counter = document.createElement('div');
+        counter.className = 'char-counter';
+        counter.style.fontSize = '0.8rem';
+        counter.style.color = '#6c757d';
+        counter.style.textAlign = 'right';
+        counter.style.marginTop = '5px';
+        
+        textarea.parentNode.appendChild(counter);
+        
+        function updateCounter() {
+            const length = textarea.value.length;
+            counter.textContent = `${length} символов`;
             
-            // Находим ближайший span для отображения имени файла
-            const label = this.closest('.file-label');
-            if (label) {
-                const span = label.querySelector('span');
-                if (span) {
-                    span.textContent = fileName;
+            if (length > 10000) {
+                counter.style.color = '#dc3545';
+            } else if (length > 5000) {
+                counter.style.color = '#ffc107';
+            } else {
+                counter.style.color = '#6c757d';
+            }
+        }
+        
+        textarea.addEventListener('input', updateCounter);
+        updateCounter();
+    });
+    
+    // Валидация формы
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const textareas = this.querySelectorAll('textarea[required]');
+            let isValid = true;
+            
+            textareas.forEach(textarea => {
+                if (!textarea.value.trim()) {
+                    isValid = false;
+                    textarea.style.borderColor = '#dc3545';
+                    
+                    if (!textarea.nextElementSibling?.classList.contains('error-message')) {
+                        const error = document.createElement('div');
+                        error.className = 'error-message';
+                        error.style.color = '#dc3545';
+                        error.style.fontSize = '0.9rem';
+                        error.style.marginTop = '5px';
+                        error.textContent = 'Это поле обязательно для заполнения';
+                        textarea.parentNode.appendChild(error);
+                    }
+                } else {
+                    textarea.style.borderColor = '#dee2e6';
+                    const error = textarea.parentNode.querySelector('.error-message');
+                    if (error) {
+                        error.remove();
+                    }
+                }
+            });
+            
+            if (!isValid) {
+                e.preventDefault();
+                
+                // Прокрутка к первой ошибке
+                const firstError = this.querySelector('.error-message');
+                if (firstError) {
+                    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             }
         });
     });
     
-    // Обработка множественного выбора фотографий
-    const photoInput = document.getElementById('photo_files');
-    if (photoInput) {
-        photoInput.addEventListener('change', function(e) {
-            const fileList = document.getElementById('fileList');
-            if (fileList) {
-                fileList.innerHTML = '';
+    // Анимация загрузки кнопок
+    const buttons = document.querySelectorAll('.btn');
+    buttons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            if (this.type === 'submit' || this.href) {
+                // Добавляем анимацию загрузки
+                const originalHTML = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Обработка...';
+                this.disabled = true;
                 
-                if (e.target.files.length > 0) {
-                    const list = document.createElement('ul');
-                    list.style.listStyle = 'none';
-                    list.style.paddingLeft = '0';
-                    list.style.marginTop = '10px';
-                    
-                    const maxFilesToShow = 5;
-                    const filesToShow = Math.min(e.target.files.length, maxFilesToShow);
-                    
-                    for (let i = 0; i < filesToShow; i++) {
-                        const li = document.createElement('li');
-                        li.textContent = `📷 ${e.target.files[i].name}`;
-                        li.style.padding = '5px 0';
-                        li.style.borderBottom = '1px solid #eee';
-                        list.appendChild(li);
-                    }
-                    
-                    if (e.target.files.length > maxFilesToShow) {
-                        const li = document.createElement('li');
-                        li.textContent = `... и ещё ${e.target.files.length - maxFilesToShow} файлов`;
-                        li.style.padding = '5px 0';
-                        li.style.color = '#666';
-                        list.appendChild(li);
-                    }
-                    
-                    fileList.appendChild(list);
-                }
+                // Восстанавливаем через 5 секунд (на случай если что-то пошло не так)
+                setTimeout(() => {
+                    this.innerHTML = originalHTML;
+                    this.disabled = false;
+                }, 5000);
             }
         });
-    }
+    });
     
-    // Обработка отправки формы
-    const uploadForm = document.getElementById('uploadForm');
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', function() {
-            const submitBtn = document.getElementById('submitBtn');
-            const loading = document.getElementById('loading');
+    // Подсветка синтаксиса для примеров кода
+    const codeBlocks = document.querySelectorAll('pre');
+    codeBlocks.forEach(block => {
+        // Добавляем кнопку копирования для блоков кода
+        if (!block.parentNode.querySelector('.copy-code-btn')) {
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'btn btn-small copy-code-btn';
+            copyBtn.innerHTML = '<i class="fas fa-copy"></i> Копировать';
+            copyBtn.style.position = 'absolute';
+            copyBtn.style.top = '10px';
+            copyBtn.style.right = '10px';
             
-            if (submitBtn) submitBtn.style.display = 'none';
-            if (loading) loading.style.display = 'flex';
-        });
-    }
-    
-    // Логика для страницы результатов
-    if (window.location.pathname.includes('/result')) {
-        checkUploadStatus();
-    }
-});
-
-function checkUploadStatus() {
-    const sessionId = document.querySelector('meta[name="session-id"]')?.content;
-    if (!sessionId) return;
-    
-    let checkCount = 0;
-    const maxChecks = 60; // Максимум 2 минуты
-    
-    function pollStatus() {
-        if (checkCount >= maxChecks) {
-            console.log('Max polling attempts reached');
-            return;
+            copyBtn.addEventListener('click', function() {
+                const text = block.textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    const originalHTML = this.innerHTML;
+                    this.innerHTML = '<i class="fas fa-check"></i> Скопировано!';
+                    this.classList.add('btn-success');
+                    
+                    setTimeout(() => {
+                        this.innerHTML = originalHTML;
+                        this.classList.remove('btn-success');
+                    }, 2000);
+                });
+            });
+            
+            block.style.position = 'relative';
+            block.style.paddingTop = '40px';
+            block.parentNode.style.position = 'relative';
+            block.parentNode.appendChild(copyBtn);
         }
+    });
+    
+    // Сохранение введенных данных в localStorage
+    const saveToStorage = debounce(function() {
+        const inputs = document.querySelectorAll('textarea, input[type="text"]');
+        const data = {};
         
-        fetch(`/status/${sessionId}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Network response was not ok');
-                }
-                return response.json();
-            })
-            .then(data => {
-                updateStatusDisplay(data);
-                
-                // Если обработка еще не завершена, продолжаем опрос
-                if (data.status === 'processing' && checkCount < maxChecks) {
-                    checkCount++;
-                    setTimeout(pollStatus, 2000); // Опрос каждые 2 секунды
-                }
-            })
-            .catch(error => {
-                console.error('Error checking status:', error);
-                
-                // Повторяем попытку через 5 секунд при ошибке
-                if (checkCount < maxChecks) {
-                    checkCount++;
-                    setTimeout(pollStatus, 5000);
+        inputs.forEach(input => {
+            if (input.name) {
+                data[input.name] = input.value;
+            }
+        });
+        
+        if (Object.keys(data).length > 0) {
+            localStorage.setItem('vk_uploader_form_data', JSON.stringify(data));
+        }
+    }, 1000);
+    
+    // Восстановление данных из localStorage
+    const savedData = localStorage.getItem('vk_uploader_form_data');
+    if (savedData) {
+        try {
+            const data = JSON.parse(savedData);
+            Object.keys(data).forEach(key => {
+                const input = document.querySelector(`[name="${key}"]`);
+                if (input && !input.value) {
+                    input.value = data[key];
+                    
+                    // Запускаем событие input для обновления счетчиков
+                    input.dispatchEvent(new Event('input'));
                 }
             });
-    }
-    
-    pollStatus();
-}
-
-function updateStatusDisplay(data) {
-    // Обновляем прогресс-бар
-    const progressFill = document.getElementById('progressFill');
-    const progressText = document.getElementById('progressText');
-    
-    if (progressFill) {
-        progressFill.style.width = `${data.progress || 0}%`;
-    }
-    
-    if (progressText) {
-        progressText.textContent = `${data.progress || 0}%`;
-    }
-    
-    // Обновляем сообщение
-    const statusMessage = document.getElementById('statusMessage');
-    if (statusMessage) {
-        statusMessage.textContent = data.message || 'Обработка...';
-    }
-    
-    // Обновляем иконку статуса
-    const statusIcon = document.querySelector('.status-header h2 i');
-    if (statusIcon) {
-        if (data.status === 'processing') {
-            statusIcon.className = 'fas fa-spinner fa-spin';
-            statusIcon.style.color = '';
-        } else if (data.status === 'success') {
-            statusIcon.className = 'fas fa-check-circle';
-            statusIcon.style.color = '#28a745';
-        } else if (data.status === 'error') {
-            statusIcon.className = 'fas fa-exclamation-circle';
-            statusIcon.style.color = '#dc3545';
+        } catch (e) {
+            console.log('Не удалось восстановить данные:', e);
         }
     }
     
-    // Показываем результат если есть
-    if (data.result) {
-        const resultOutput = document.getElementById('resultOutput');
-        const outputContent = document.getElementById('outputContent');
-        
-        if (resultOutput) resultOutput.style.display = 'block';
-        if (outputContent) outputContent.textContent = data.result;
-    }
+    // Слушаем изменения в полях ввода
+    document.addEventListener('input', saveToStorage);
     
-    // Показываем кнопки действий если обработка завершена
-    if (data.status === 'success' || data.status === 'error') {
-        const resultActions = document.getElementById('resultActions');
-        if (resultActions) resultActions.style.display = 'flex';
+    // Очистка localStorage при успешной отправке формы
+    forms.forEach(form => {
+        form.addEventListener('submit', function() {
+            localStorage.removeItem('vk_uploader_form_data');
+        });
+    });
+});
+
+// Функция debounce для оптимизации
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Отображение текущего времени
+function updateClock() {
+    const clockElement = document.getElementById('current-time');
+    if (clockElement) {
+        const now = new Date();
+        clockElement.textContent = now.toLocaleTimeString('ru-RU');
     }
 }
+
+// Обновляем время каждую секунду
+setInterval(updateClock, 1000);
+updateClock();

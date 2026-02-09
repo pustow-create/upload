@@ -13,18 +13,15 @@ import shutil
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-me')
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max upload
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'txt', 'csv', 'zip'}
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Хранилище статусов
 upload_statuses = {}
 
 class BatchProcessor:
-    """Обработчик пакетной загрузки"""
-    
     def __init__(self, session_id, temp_dir):
         self.session_id = session_id
         self.temp_dir = temp_dir
@@ -34,7 +31,6 @@ class BatchProcessor:
         self.total_batches = 0
         
     def process(self):
-        """Основной процесс обработки"""
         try:
             self.update_status('Инициализация обработки...', 5)
             
@@ -74,7 +70,6 @@ class BatchProcessor:
             traceback.print_exc()
     
     def validate_files(self):
-        """Проверка обязательных файлов"""
         required = ['config.txt', 'photos.csv']
         for file in required:
             if not os.path.exists(os.path.join(self.temp_dir, file)):
@@ -83,7 +78,6 @@ class BatchProcessor:
         return True
     
     def read_csv_data(self):
-        """Упрощенное чтение CSV"""
         csv_path = os.path.join(self.temp_dir, 'photos.csv')
         photos_data = []
         
@@ -131,12 +125,10 @@ class BatchProcessor:
         return photos_data
     
     def split_into_batches(self, photos_data):
-        """Разделение на пакеты"""
         return [photos_data[i:i + self.batch_size] 
                 for i in range(0, len(photos_data), self.batch_size)]
     
     def process_batch(self, batch, batch_index):
-        """Обработка одного пакета"""
         try:
             for item in batch:
                 item['success'] = True
@@ -149,7 +141,6 @@ class BatchProcessor:
             return False
     
     def save_progress(self, batch_index):
-        """Сохранение прогресса"""
         progress_file = os.path.join(self.temp_dir, f'progress_{batch_index}.json')
         with open(progress_file, 'w', encoding='utf-8') as f:
             json.dump({
@@ -159,7 +150,6 @@ class BatchProcessor:
             }, f)
     
     def complete_processing(self):
-        """Завершение обработки"""
         result = self.generate_result()
         
         upload_statuses[self.session_id]['status'] = 'success'
@@ -173,7 +163,6 @@ class BatchProcessor:
             f.write(result)
     
     def generate_result(self):
-        """Генерация отчета"""
         return f"""=== РЕЗУЛЬТАТЫ ОБРАБОТКИ ===
 
 ✅ ОБРАБОТКА ЗАВЕРШЕНА
@@ -197,12 +186,10 @@ class BatchProcessor:
 === Готово к использованию ==="""
     
     def update_status(self, message, progress):
-        """Обновление статуса"""
         upload_statuses[self.session_id]['message'] = message
         upload_statuses[self.session_id]['progress'] = progress
     
     def set_error(self, error_message):
-        """Установка ошибки"""
         upload_statuses[self.session_id]['status'] = 'error'
         upload_statuses[self.session_id]['message'] = error_message
 
@@ -505,19 +492,19 @@ album_id=123456789
                     continue
                 
                 parts = line.split("|", 2)
-                main_photo = parts[0].strip().strip('"\\'')
+                main_photo = parts[0].strip().strip('"')
                 
                 if not main_photo:
                     continue
                 
-                description = parts[1].strip().strip('"\\'') if len(parts) > 1 else ""
-                comment_files_str = parts[2].strip().strip('"\\'') if len(parts) > 2 else ""
+                description = parts[1].strip().strip('"') if len(parts) > 1 else ""
+                comment_files_str = parts[2].strip().strip('"') if len(parts) > 2 else ""
                 
                 comment_files = []
                 if comment_files_str:
                     for separator in ("; ", ";", ", ", ","):
                         if separator in comment_files_str:
-                            comment_files = [f.strip().strip('"\\'') for f in comment_files_str.split(separator)]
+                            comment_files = [f.strip().strip('"') for f in comment_files_str.split(separator)]
                             break
                     else:
                         comment_files = [comment_files_str]
@@ -547,26 +534,26 @@ album_id=123456789
         failed = 0
         
         for batch_num, batch in enumerate(batches, 1):
-            print(f"\\n{"="*60}")
+            print(f"\\n{'='*60}")
             print(f"ПАКЕТ {batch_num}/{len(batches)} ({len(batch)} фото)")
-            print(f"{"="*60}")
+            print(f"{'='*60}")
             
             batch_successful = 0
             batch_failed = 0
             
             for item in batch:
                 try:
-                    print(f"Обработка: {item["main_photo"]}")
+                    print(f"Обработка: {item['main_photo']}")
                     time.sleep(0.5)
                     
                     item["processed"] = True
                     batch_successful += 1
-                    print(f"✓ Успешно: {item["main_photo"]}")
+                    print(f"✓ Успешно: {item['main_photo']}")
                     
                 except Exception as e:
                     item["error"] = str(e)
                     batch_failed += 1
-                    print(f"✗ Ошибка: {item["main_photo"]} - {e}")
+                    print(f"✗ Ошибка: {item['main_photo']} - {e}")
             
             successful += batch_successful
             failed += batch_failed
@@ -594,9 +581,9 @@ album_id=123456789
         with open(report_file, "w", encoding="utf-8") as f:
             f.write(report)
         
-        print(f"\\n{"="*60}")
+        print(f"\\n{'='*60}")
         print("ОБРАБОТКА ЗАВЕРШЕНА!")
-        print(f"{"="*60}")
+        print(f"{'='*60}")
         print(f"✅ Успешно: {successful}")
         print(f"❌ С ошибками: {failed}")
         print(f"📊 Всего: {total}")

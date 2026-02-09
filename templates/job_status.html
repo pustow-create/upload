@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Статус задания - VK Photo Uploader</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1><i class="fas fa-tasks"></i> Статус задания</h1>
+            <p class="subtitle">Отслеживание подготовки инструкций для локального выполнения</p>
+        </header>
+        
+        <main class="main-content">
+            <div class="card">
+                <div class="back-link">
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                        <i class="fas fa-home"></i> На главную
+                    </a>
+                    <a href="{{ url_for('configure') }}" class="btn btn-secondary">
+                        <i class="fas fa-plus"></i> Новое задание
+                    </a>
+                </div>
+                
+                <div class="status-container" id="statusContainer">
+                    <div class="status-header">
+                        <h2><i class="fas fa-spinner fa-spin"></i> Подготовка задания...</h2>
+                        <div class="status-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                            </div>
+                            <span class="progress-text" id="progressText">0%</span>
+                        </div>
+                    </div>
+                    
+                    <div class="status-message" id="statusMessage">
+                        Инициализация задания...
+                    </div>
+                    
+                    <div class="status-details">
+                        <div class="detail-item">
+                            <i class="fas fa-id-card"></i>
+                            <span>ID задания:</span>
+                            <strong id="jobId">{{ job_id }}</strong>
+                        </div>
+                        <div class="detail-item">
+                            <i class="fas fa-clock"></i>
+                            <span>Создано:</span>
+                            <strong id="createdAt">Загрузка...</strong>
+                        </div>
+                        <div class="detail-item">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Статус:</span>
+                            <strong id="currentStatus">processing</strong>
+                        </div>
+                    </div>
+                    
+                    <div class="result-output" id="resultOutput" style="display: none;">
+                        <h3><i class="fas fa-terminal"></i> Результат:</h3>
+                        <pre id="outputContent"></pre>
+                    </div>
+                    
+                    <div class="result-actions" id="resultActions" style="display: none;">
+                        <a href="{{ url_for('download_script', job_id=job_id) }}" class="btn btn-success" id="downloadScriptBtn">
+                            <i class="fas fa-download"></i> Скачать скрипт для локального выполнения
+                        </a>
+                        <a href="{{ url_for('local_version') }}" class="btn btn-secondary">
+                            <i class="fas fa-desktop"></i> Скачать полную локальную версию
+                        </a>
+                        <button class="btn btn-warning" onclick="cleanupJob()">
+                            <i class="fas fa-trash-alt"></i> Удалить задание
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="footer">
+            <p>ID задания: {{ job_id }}</p>
+        </footer>
+    </div>
+    
+    <script>
+        const jobId = '{{ job_id }}';
+        let checkInterval;
+        
+        function updateStatus(data) {
+            // Обновляем прогресс
+            document.getElementById('progressFill').style.width = (data.progress || 0) + '%';
+            document.getElementById('progressText').textContent = (data.progress || 0) + '%';
+            
+            // Обновляем сообщение
+            document.getElementById('statusMessage').textContent = data.message || 'Обработка...';
+            
+            // Обновляем детали
+            document.getElementById('createdAt').textContent = data.created_at || 'N/A';
+            document.getElementById('currentStatus').textContent = data.status || 'unknown';
+            
+            // Меняем иконку в зависимости от статуса
+            const statusIcon = document.querySelector('.status-header h2 i');
+            if (data.status === 'processing') {
+                statusIcon.className = 'fas fa-spinner fa-spin';
+                statusIcon.style.color = '';
+            } else if (data.status === 'ready_for_local') {
+                statusIcon.className = 'fas fa-check-circle';
+                statusIcon.style.color = '#28a745';
+                
+                // Обновляем заголовок
+                document.querySelector('.status-header h2').innerHTML = 
+                    '<i class="fas fa-check-circle" style="color: #28a745;"></i> Задание готово!';
+            } else if (data.status === 'error') {
+                statusIcon.className = 'fas fa-exclamation-circle';
+                statusIcon.style.color = '#dc3545';
+            }
+            
+            // Показываем результат если есть
+            if (data.result) {
+                document.getElementById('resultOutput').style.display = 'block';
+                document.getElementById('outputContent').textContent = data.result;
+            }
+            
+            // Показываем действия если обработка завершена
+            if (data.status === 'ready_for_local') {
+                document.getElementById('resultActions').style.display = 'flex';
+                
+                // Останавливаем обновление статуса
+                if (checkInterval) {
+                    clearInterval(checkInterval);
+                }
+            }
+        }
+        
+        function checkStatus() {
+            fetch(`/api/job/${jobId}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateStatus(data);
+                })
+                .catch(error => {
+                    console.error('Error checking status:', error);
+                    document.getElementById('statusMessage').textContent = 'Ошибка получения статуса';
+                });
+        }
+        
+        function cleanupJob() {
+            fetch(`/cleanup/${jobId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                window.location.href = '/';
+            })
+            .catch(error => {
+                console.error('Error cleaning up:', error);
+                window.location.href = '/';
+            });
+        }
+        
+        // Начинаем проверку статуса
+        checkInterval = setInterval(checkStatus, 2000);
+        checkStatus();
+        
+        // Автоматическая очистка при закрытии страницы
+        window.addEventListener('beforeunload', function() {
+            if (checkInterval) {
+                clearInterval(checkInterval);
+            }
+        });
+    </script>
+</body>
+</html>

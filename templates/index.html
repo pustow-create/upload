@@ -4,63 +4,601 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VK Photo Uploader</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+        }
+        
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+        }
+        
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 60px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f8f9fa;
+            margin-bottom: 20px;
+        }
+        
+        .drop-zone:hover {
+            background: #e9ecef;
+            border-color: #764ba2;
+        }
+        
+        .drop-zone.dragover {
+            background: #e3f2fd;
+            border-color: #2196f3;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        
+        .file-list {
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .file-item:last-child {
+            border-bottom: none;
+        }
+        
+        .file-name {
+            flex: 1;
+            word-break: break-all;
+        }
+        
+        .file-size {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .required-files {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .required-files h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        
+        .status-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 50%;
+        }
+        
+        .status-icon.found {
+            background: #28a745;
+        }
+        
+        .status-icon.missing {
+            background: #dc3545;
+        }
+        
+        .status-icon.unknown {
+            background: #ffc107;
+        }
+        
+        .progress-container {
+            margin: 30px 0;
+        }
+        
+        .progress-bar {
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .progress-text {
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .log-container {
+            margin-top: 30px;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+        
+        .log-entry {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        .log-entry.success {
+            color: #28a745;
+        }
+        
+        .log-entry.error {
+            color: #dc3545;
+        }
+        
+        .log-entry.info {
+            color: #17a2b8;
+        }
+        
+        .log-entry.warning {
+            color: #ffc107;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .step {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .step:last-child {
+            border-bottom: none;
+        }
+        
+        .step-title {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .step-number {
+            width: 30px;
+            height: 30px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <header class="header">
-            <h1><i class="fas fa-cloud-upload-alt"></i> VK Photo Uploader</h1>
-            <p class="subtitle">Веб-интерфейс для загрузки фотографий в ВКонтакте</p>
-        </header>
+        <h1>📤 VK Photo Uploader</h1>
         
-        <main class="main-content">
-            <div class="card">
-                <h2><i class="fas fa-info-circle"></i> О программе</h2>
-                <p>Это веб-приложение позволяет загружать фотографии в альбом ВКонтакте с использованием CSV файла для структурирования данных.</p>
+        <div class="card">
+            <div class="step">
+                <div class="step-title">
+                    <div class="step-number">1</div>
+                    <h2>Выберите папку</h2>
+                </div>
                 
-                <div class="features">
-                    <div class="feature">
-                        <i class="fas fa-file-alt"></i>
-                        <h3>Конфигурация</h3>
-                        <p>Загрузите config.txt с настройками доступа</p>
+                <div class="required-files">
+                    <h3>📋 В папке должны быть:</h3>
+                    <div class="status-item">
+                        <div class="status-icon unknown"></div>
+                        <span>config.txt — конфигурация VK API</span>
                     </div>
-                    <div class="feature">
-                        <i class="fas fa-table"></i>
-                        <h3>CSV файл</h3>
-                        <p>photos.csv с описанием фото и комментариев</p>
+                    <div class="status-item">
+                        <div class="status-icon unknown"></div>
+                        <span>.csv файл — данные для загрузки</span>
                     </div>
-                    <div class="feature">
-                        <i class="fas fa-images"></i>
-                        <h3>Фотографии</h3>
-                        <p>Все изображения для загрузки</p>
+                    <div class="status-item">
+                        <div class="status-icon unknown"></div>
+                        <span>Фотографии — все фото из CSV</span>
                     </div>
                 </div>
                 
-                <div class="instructions">
-                    <h3><i class="fas fa-list-ol"></i> Как использовать:</h3>
-                    <ol>
-                        <li>Подготовьте файлы (config.txt, photos.csv, фотографии)</li>
-                        <li>Загрузите их через форму</li>
-                        <li>Дождитесь обработки</li>
-                        <li>Получите результат</li>
-                    </ol>
+                <div 
+                    class="drop-zone" 
+                    id="dropZone"
+                    onclick="document.getElementById('folderInput').click()"
+                >
+                    <div class="upload-icon">📁</div>
+                    <p><strong>Перетащите сюда папку</strong></p>
+                    <p>или нажмите для выбора</p>
+                    <p class="small-text" style="margin-top: 10px; color: #666; font-size: 0.9em;">
+                        Должны быть: config.txt, CSV файл и все фотографии
+                    </p>
                 </div>
                 
-                <div class="cta">
-                    <a href="{{ url_for('upload_files') }}" class="btn btn-primary">
-                        <i class="fas fa-upload"></i> Начать загрузку
-                    </a>
+                <input 
+                    type="file" 
+                    id="folderInput" 
+                    webkitdirectory 
+                    directory 
+                    multiple 
+                    hidden
+                    onchange="handleFolderSelect(event)"
+                >
+                
+                <div id="fileList" class="file-list hidden">
+                    <!-- Список файлов будет здесь -->
+                </div>
+                
+                <div class="buttons">
+                    <button 
+                        id="checkBtn" 
+                        class="btn-primary" 
+                        onclick="checkFiles()"
+                        disabled
+                    >
+                        Проверить файлы
+                    </button>
                 </div>
             </div>
-        </main>
-        
-        <footer class="footer">
-            <p>VK Photo Uploader Web &copy; 2024</p>
-            <p>Работает на Flask | Развернуто на Render</p>
-        </footer>
+            
+            <div class="step">
+                <div class="step-title">
+                    <div class="step-number">2</div>
+                    <h2>Настройте загрузку</h2>
+                </div>
+                
+                <div id="configStatus"></div>
+                
+                <div class="buttons">
+                    <button 
+                        id="startBtn" 
+                        class="btn-primary" 
+                        onclick="startUpload()"
+                        disabled
+                    >
+                        Начать загрузку в VK
+                    </button>
+                </div>
+            </div>
+            
+            <div class="step">
+                <div class="step-title">
+                    <div class="step-number">3</div>
+                    <h2>Прогресс загрузки</h2>
+                </div>
+                
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+                
+                <div id="uploadStatus"></div>
+                
+                <div class="buttons">
+                    <button 
+                        id="cancelBtn" 
+                        class="btn-secondary" 
+                        onclick="cancelUpload()"
+                        disabled
+                    >
+                        Отменить
+                    </button>
+                </div>
+            </div>
+            
+            <div class="log-container">
+                <h3>📝 Лог выполнения:</h3>
+                <div id="logEntries"></div>
+            </div>
+        </div>
     </div>
-    
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
-</body>
-</html>
+
+    <script>
+        let selectedFiles = [];
+        let uploadInProgress = false;
+        let currentRow = 0;
+        let totalRows = 0;
+        
+        // Элементы DOM
+        const dropZone = document.getElementById('dropZone');
+        const folderInput = document.getElementById('folderInput');
+        const fileList = document.getElementById('fileList');
+        const checkBtn = document.getElementById('checkBtn');
+        const startBtn = document.getElementById('startBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const configStatus = document.getElementById('configStatus');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const logEntries = document.getElementById('logEntries');
+        
+        // Обработчики drag & drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            
+            const items = e.dataTransfer.items;
+            const files = [];
+            
+            // Обрабатываем папки из drag & drop
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i].webkitGetAsEntry();
+                if (item) {
+                    traverseFileTree(item, files);
+                }
+            }
+        });
+        
+        function traverseFileTree(item, files, path = '') {
+            if (item.isFile) {
+                item.file((file) => {
+                    file.filepath = path + file.name;
+                    files.push(file);
+                    if (files.length === 1) {
+                        // Даем время для сбора всех файлов
+                        setTimeout(() => displayFiles(files), 100);
+                    }
+                });
+            } else if (item.isDirectory) {
+                const dirReader = item.createReader();
+                dirReader.readEntries((entries) => {
+                    for (let i = 0; i < entries.length; i++) {
+                        traverseFileTree(entries[i], files, path + item.name + '/');
+                    }
+                });
+            }
+        }
+        
+        function handleFolderSelect(event) {
+            selectedFiles = Array.from(event.target.files);
+            displayFiles(selectedFiles);
+        }
+        
+        function displayFiles(files) {
+            fileList.innerHTML = '';
+            fileList.classList.remove('hidden');
+            
+            // Группируем файлы по типам
+            const configFiles = files.filter(f => f.name.toLowerCase() === 'config.txt');
+            const csvFiles = files.filter(f => f.name.toLowerCase().endsWith('.csv'));
+            const imageFiles = files.filter(f => 
+                f.name.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)
+            );
+            const otherFiles = files.filter(f => 
+                !f.name.toLowerCase().endsWith('.csv') && 
+                !f.name.toLowerCase().endsWith('.txt') &&
+                !f.name.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/)
+            );
+            
+            // Отображаем config.txt
+            if (configFiles.length > 0) {
+                const section = document.createElement('div');
+                section.innerHTML = '<h4>Конфигурация:</h4>';
+                configFiles.forEach(file => {
+                    section.appendChild(createFileItem(file));
+                });
+                fileList.appendChild(section);
+            }
+            
+            // Отображаем CSV файлы
+            if (csvFiles.length > 0) {
+                const section = document.createElement('div');
+                section.innerHTML = '<h4>CSV файлы:</h4>';
+                csvFiles.forEach(file => {
+                    section.appendChild(createFileItem(file));
+                });
+                fileList.appendChild(section);
+            }
+            
+            // Отображаем изображения
+            if (imageFiles.length > 0) {
+                const section = document.createElement('div');
+                section.innerHTML = `<h4>Фотографии (${imageFiles.length}):</h4>`;
+                const imagesList = document.createElement('div');
+                imagesList.style.maxHeight = '150px';
+                imagesList.style.overflowY = 'auto';
+                imageFiles.forEach(file => {
+                    imagesList.appendChild(createFileItem(file));
+                });
+                section.appendChild(imagesList);
+                fileList.appendChild(section);
+            }
+            
+            // Отображаем другие файлы
+            if (otherFiles.length > 0) {
+                const section = document.createElement('div');
+                section.innerHTML = `<h4>Другие файлы (${otherFiles.length}):</h4>`;
+                otherFiles.forEach(file => {
+                    section.appendChild(createFileItem(file));
+                });
+                fileList.appendChild(section);
+            }
+            
+            checkBtn.disabled = false;
+        }
+        
+        function createFileItem(file) {
+            const div = document.createElement('div');
+            div.className = 'file-item';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'file-name';
+            nameSpan.textContent = file.name;
+            
+            const sizeSpan = document.createElement('span');
+            sizeSpan.className = 'file-size';
+            sizeSpan.textContent = formatFileSize(file.size);
+            
+            div.appendChild(nameSpan);
+            div.appendChild(sizeSpan);
+            
+            return div;
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logEntries.appendChild(entry);
+            logEntries.scrollTop = logEntries.scrollHeight;
+        }
+        
+        function checkFiles() {
+            if (selectedFiles.length === 0) {
+                alert('Пожалуйста, выберите папку с файлами');
+                return;
+            }
+            
+            checkBtn.disabled = true

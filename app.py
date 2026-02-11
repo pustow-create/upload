@@ -7,7 +7,6 @@ import tempfile
 import threading
 from datetime import timedelta
 from flask import Flask, render_template, request, jsonify, session, send_from_directory
-from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 # ==================== НАСТРОЙКА ПРИЛОЖЕНИЯ ====================
@@ -18,10 +17,23 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)
 
-# Разрешаем CORS
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": "*"}})
+# ==================== СВОЯ РЕАЛИЗАЦИЯ CORS ====================
+@app.after_request
+def add_cors_headers(response):
+    """Добавление CORS заголовков ко всем ответам"""
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Session-ID'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
 
-# Версия VK API
+@app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+@app.route('/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    """Обработка OPTIONS запросов для CORS"""
+    return '', 200
+
+# ==================== ВЕРСИЯ VK API ====================
 VK_API_VERSION = "5.199"
 
 # ==================== ХРАНЕНИЕ СЕССИЙ ====================
@@ -45,9 +57,15 @@ def delete_session(session_id):
         if session_id in sessions:
             del sessions[session_id]
 
-# ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
-def load_config(config_content):
-    """Загрузка конфигурации из config.txt с поддержкой комментариев"""
+# ==================== ФУНКЦИИ ЗАГРУЗКИ КОНФИГА (ИСПРАВЛЕНО) ====================
+def load_config_from_file(config_content):
+    """
+    Парсинг конфигурации из текста config.txt
+    Поддерживает:
+    - комментарии (строки начинающиеся с #)
+    - пустые строки
+    - ключи как в верхнем, так и в нижнем регистре
+    """
     config = {}
     
     # Декодируем если нужно
@@ -56,8 +74,9 @@ def load_config(config_content):
     else:
         content = config_content
     
-    # Разбиваем на строки и обрабатываем каждую
+    # Разбиваем на строки
     lines = content.strip().split('\n')
+    
     for line in lines:
         line = line.strip()
         
@@ -68,17 +87,18 @@ def load_config(config_content):
         # Ищем строки вида key=value
         if '=' in line:
             key, value = line.split('=', 1)
-            key = key.strip().lower()  # приводим к нижнему регистру
+            key = key.strip().upper()  # Приводим к верхнему регистру для единообразия
             value = value.strip()
             
-            # Пропускаем если значение пустое
+            # Сохраняем только непустые значения
             if value:
                 config[key] = value
     
     return config
 
-def parse_csv(csv_content):
-    """Парсинг CSV файла"""
+# ==================== ПАРСИНГ CSV ====================
+def parse_csv_content(csv_content):
+    """Парсинг CSV файла с разделителем |"""
     if isinstance(csv_content, bytes):
         content = csv_content.decode('utf-8-sig', errors='ignore')
     else:
@@ -112,11 +132,12 @@ def parse_csv(csv_content):
                     'main_photo': main_photo,
                     'description': description,
                     'comment_photos': comment_photos,
-                    'row_index': len(csv_data)  # Добавляем индекс строки
+                    'row_index': len(csv_data)
                 })
     
     return csv_data
 
+# ==================== АНАЛИЗ ФАЙЛОВ ====================
 def analyze_files(csv_data, uploaded_files):
     """Анализ файлов: какие нужны, какие есть, какие лишние"""
     # Все файлы, которые упоминаются в CSV
@@ -138,9 +159,14 @@ def analyze_files(csv_data, uploaded_files):
         'uploaded_files': list(uploaded_file_names),
         'missing_files': list(missing_files),
         'extra_files': list(extra_files),
-        'all_required_present': len(missing_files) == 0
+        'all_required_present': len(missing_files) == 0,
+        'required_count': len(required_files),
+        'uploaded_count': len(uploaded_file_names),
+        'missing_count': len(missing_files),
+        'extra_count': len(extra_files)
     }
 
+# ==================== РАЗБИВКА НА ГРУППЫ ====================
 def split_into_groups(photos, group_size=2):
     """Разделение фото на группы для комментариев"""
     groups = []
@@ -148,16 +174,15 @@ def split_into_groups(photos, group_size=2):
         groups.append(photos[i:i + group_size])
     return groups
 
+# ==================== КЛАСС ДЛЯ РАБОТЫ С VK API ====================
 class VKUploader:
-    """Класс для работы с VK API"""
-    
     def __init__(self, access_token, group_id=None):
         self.access_token = access_token
         self.group_id = group_id
         self.api_url = "https://api.vk.com/method/"
     
-    def call_api(self, method, params):
-        """Вызов метода VK API"""
+    def _call_api(self, method, params):
+        """Вызов VK API"""
         params.update({
             'access_token': self.access_token,
             'v': VK_API_VERSION
@@ -174,6 +199,8 @@ class VKUploader:
                 raise Exception(f"VK API Error {error_code}: {error_msg}")
             
             return result['response']
+        except requests.exceptions.Timeout:
+            raise Exception("VK API timeout")
         except requests.exceptions.RequestException as e:
             raise Exception(f"Network error: {str(e)}")
     
@@ -182,14 +209,14 @@ class VKUploader:
         params = {'album_id': album_id}
         if self.group_id:
             params['group_id'] = abs(int(self.group_id))
-        return self.call_api('photos.getUploadServer', params)
+        return self._call_api('photos.getUploadServer', params)
     
     def get_wall_upload_server(self):
         """Получить адрес для загрузки фото на стену"""
         params = {}
         if self.group_id:
             params['group_id'] = abs(int(self.group_id))
-        return self.call_api('photos.getWallUploadServer', params)
+        return self._call_api('photos.getWallUploadServer', params)
     
     def save_album_photo(self, server, photos_list, hash_value, album_id):
         """Сохранить загруженное фото в альбом"""
@@ -201,7 +228,7 @@ class VKUploader:
         }
         if self.group_id:
             params['group_id'] = abs(int(self.group_id))
-        return self.call_api('photos.save', params)
+        return self._call_api('photos.save', params)
     
     def save_wall_photo(self, server, photo, hash_value):
         """Сохранить фото для стены (комментариев)"""
@@ -212,7 +239,7 @@ class VKUploader:
         }
         if self.group_id:
             params['group_id'] = abs(int(self.group_id))
-        return self.call_api('photos.saveWallPhoto', params)
+        return self._call_api('photos.saveWallPhoto', params)
     
     def create_album_comment(self, owner_id, photo_id, attachments=None, message=""):
         """Создать комментарий к фото в альбоме"""
@@ -225,7 +252,23 @@ class VKUploader:
         if attachments:
             params['attachments'] = ','.join(attachments)
         
-        return self.call_api('photos.createComment', params)
+        return self._call_api('photos.createComment', params)
+
+# ==================== ОБРАБОТКА ФАЙЛОВ ====================
+def process_upload_stream(file_storage):
+    """Обработка файла в потоковом режиме без сохранения на диск"""
+    temp_file = tempfile.SpooledTemporaryFile(max_size=5*1024*1024)  # 5MB в памяти
+    chunk_size = 8192
+    file_storage.seek(0)
+    
+    while True:
+        chunk = file_storage.read(chunk_size)
+        if not chunk:
+            break
+        temp_file.write(chunk)
+    
+    temp_file.seek(0)
+    return temp_file
 
 # ==================== ОСНОВНЫЕ МАРШРУТЫ ====================
 @app.route('/')
@@ -238,15 +281,6 @@ def serve_static(filename):
     """Сервирование статических файлов"""
     return send_from_directory('static', filename)
 
-@app.after_request
-def add_cors_headers(response):
-    """Добавление CORS заголовков"""
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Session-ID'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    return response
-
 @app.route('/api/health', methods=['GET'])
 def health():
     """Проверка работоспособности API"""
@@ -257,6 +291,7 @@ def health():
         'version': '1.0'
     })
 
+# ==================== ИНИЦИАЛИЗАЦИЯ ЗАГРУЗКИ ====================
 @app.route('/api/init', methods=['POST'])
 def init_upload():
     """Инициализация загрузки - анализ файлов"""
@@ -267,9 +302,8 @@ def init_upload():
         csv_content = None
         
         for file_storage in request.files.getlist('files'):
-            filename = file_storage.filename
+            filename = secure_filename(file_storage.filename)
             
-            # Сохраняем файлы в памяти
             if filename.lower() == 'config.txt':
                 config_content = file_storage.read()
             elif filename.lower().endswith('.csv'):
@@ -295,8 +329,9 @@ def init_upload():
             }), 400
         
         # Загружаем конфигурацию
-        config = load_config(config_content)
+        config = load_config_from_file(config_content)
         
+        # Проверяем обязательные ключи
         required_keys = ['ACCESS_TOKEN', 'ALBUM_ID']
         missing_keys = [key for key in required_keys if not config.get(key)]
         
@@ -307,7 +342,7 @@ def init_upload():
             }), 400
         
         # Парсим CSV
-        csv_data = parse_csv(csv_content)
+        csv_data = parse_csv_content(csv_content)
         
         if not csv_data:
             return jsonify({
@@ -347,6 +382,7 @@ def init_upload():
             'error': f'Ошибка инициализации: {str(e)}'
         }), 500
 
+# ==================== ОБРАБОТКА СТРОКИ CSV ====================
 @app.route('/api/process-row/<int:row_index>', methods=['POST'])
 def process_row(row_index):
     """Обработка одной строки CSV"""
@@ -392,6 +428,7 @@ def process_row(row_index):
         
         # Получаем данные строки
         row = csv_data[row_index]
+        uploaded_files = session_data.get('uploaded_files', {})
         
         # Создаем загрузчик VK
         uploader = VKUploader(access_token, group_id if group_id else None)
@@ -408,12 +445,11 @@ def process_row(row_index):
         
         # 1. Загружаем основное фото
         main_photo_name = row['main_photo']
-        uploaded_files = session_data.get('uploaded_files', {})
         
         if main_photo_name in uploaded_files:
             try:
                 # Получаем upload сервер для альбома
-                upload_server = uploader.get_album_upload_server(album_id)
+                upload_server_info = uploader.get_album_upload_server(album_id)
                 
                 # Загружаем файл на сервер VK
                 file_storage = uploaded_files[main_photo_name]['storage']
@@ -421,7 +457,7 @@ def process_row(row_index):
                 
                 files = {'file1': (main_photo_name, file_storage, 'image/jpeg')}
                 upload_response = requests.post(
-                    upload_server['upload_url'], 
+                    upload_server_info['upload_url'], 
                     files=files, 
                     timeout=60
                 )
@@ -443,6 +479,7 @@ def process_row(row_index):
                         'owner_id': photo_info['owner_id'],
                         'vk_url': f"photo{photo_info['owner_id']}_{photo_info['id']}"
                     }
+                    result['success'] = True
                     
                     # 2. Загружаем фото для комментариев
                     comment_photos = row['comment_photos']
@@ -497,8 +534,10 @@ def process_row(row_index):
                                         time.sleep(0.5)
                                         
                                     except Exception as e:
+                                        error_msg = f"{photo_name}: {str(e)}"
                                         group_result['errors'] = group_result.get('errors', [])
-                                        group_result['errors'].append(f"{photo_name}: {str(e)}")
+                                        group_result['errors'].append(error_msg)
+                                        result['errors'].append(error_msg)
                                         continue
                             
                             # Если в группе есть загруженные фото, создаем комментарий
@@ -520,21 +559,27 @@ def process_row(row_index):
                                     group_result['attachments_count'] = len(attachments)
                                     
                                 except Exception as e:
+                                    error_msg = f"Ошибка создания комментария: {str(e)}"
                                     group_result['errors'] = group_result.get('errors', [])
-                                    group_result['errors'].append(f"Ошибка создания комментария: {str(e)}")
+                                    group_result['errors'].append(error_msg)
+                                    result['errors'].append(error_msg)
                             
                             result['comment_results'].append(group_result)
-                    
-                    result['success'] = True
                 
                 else:
-                    result['errors'].append('Не удалось сохранить основное фото в альбоме')
+                    error_msg = 'Не удалось сохранить основное фото в альбоме'
+                    result['errors'].append(error_msg)
+                    result['success'] = False
                 
             except Exception as e:
-                result['errors'].append(f"Ошибка загрузки основного фото: {str(e)}")
+                error_msg = f"Ошибка загрузки основного фото: {str(e)}"
+                result['errors'].append(error_msg)
+                result['success'] = False
         
         else:
-            result['errors'].append(f'Файл {main_photo_name} не найден в загруженных файлах')
+            error_msg = f'Файл {main_photo_name} не найден в загруженных файлах'
+            result['errors'].append(error_msg)
+            result['success'] = False
         
         # Сохраняем результат в сессии
         if 'results' not in session_data:
@@ -563,6 +608,7 @@ def process_row(row_index):
             'error': f'Ошибка обработки строки {row_index}: {str(e)}'
         }), 500
 
+# ==================== ФИНАЛИЗАЦИЯ И ОТЧЕТ ====================
 @app.route('/api/finalize/<session_id>', methods=['GET'])
 def finalize(session_id):
     """Финальный отчет после загрузки"""
@@ -589,12 +635,6 @@ def finalize(session_id):
             if 'errors' in result and result['errors']:
                 all_errors.extend(result['errors'])
         
-        # Фото, которые не удалось загрузить
-        failed_photos = []
-        for result in results:
-            if not result.get('success', False):
-                failed_photos.append(result.get('main_photo', 'Неизвестно'))
-        
         # Формируем итоговый отчет
         report = {
             'session_id': session_id,
@@ -607,23 +647,11 @@ def finalize(session_id):
                 'success_rate': (successful_rows / processed_rows * 100) if processed_rows > 0 else 0
             },
             'file_analysis': file_analysis,
-            'failed_photos': failed_photos,
-            'errors': all_errors[:50],  # Ограничиваем количество ошибок в отчете
+            'errors': all_errors[:50],  # Ограничиваем количество ошибок
             'summary': {
                 'message': f'Обработано {processed_rows} из {total_rows} строк. Успешно: {successful_rows}.'
             }
         }
-        
-        # Добавляем детали по строкам
-        report['details'] = []
-        for result in results:
-            report['details'].append({
-                'row': result.get('row_index'),
-                'main_photo': result.get('main_photo'),
-                'success': result.get('success', False),
-                'errors': result.get('errors', []),
-                'comments_count': len(result.get('comment_results', []))
-            })
         
         return jsonify({
             'success': True,
@@ -636,6 +664,7 @@ def finalize(session_id):
             'error': f'Ошибка формирования отчета: {str(e)}'
         }), 500
 
+# ==================== ПРОГРЕСС ====================
 @app.route('/api/progress/<session_id>', methods=['GET'])
 def get_progress(session_id):
     """Получение прогресса обработки"""
@@ -671,6 +700,7 @@ def get_progress(session_id):
             'error': str(e)
         }), 500
 
+# ==================== ОТМЕНА ====================
 @app.route('/api/cancel/<session_id>', methods=['POST'])
 def cancel_upload(session_id):
     """Отмена загрузки"""
@@ -686,6 +716,7 @@ def cancel_upload(session_id):
             'error': str(e)
         }), 500
 
+# ==================== ТЕСТ VK ====================
 @app.route('/api/test-vk', methods=['POST'])
 def test_vk_connection():
     """Тест подключения к VK API"""
@@ -702,7 +733,7 @@ def test_vk_connection():
                 'error': 'Не найден config.txt'
             }), 400
         
-        config = load_config(config_content)
+        config = load_config_from_file(config_content)
         access_token = config.get('ACCESS_TOKEN')
         
         if not access_token:
@@ -745,23 +776,5 @@ if __name__ == '__main__':
     os.makedirs('static', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
     
-    print("=" * 60)
-    print("VK Photo Uploader v1.0")
-    print("=" * 60)
-    print("Доступные endpoints:")
-    print("  • Интерфейс: http://localhost:5000")
-    print("  • API Health: http://localhost:5000/api/health")
-    print("  • Тест VK: POST http://localhost:5000/api/test-vk")
-    print("=" * 60)
-    print("Перед началом убедитесь, что в config.txt есть:")
-    print("  ACCESS_TOKEN=ваш_токен")
-    print("  ALBUM_ID=id_альбома")
-    print("  GROUP_ID=id_группы (опционально, для загрузки в группу)")
-    print("=" * 60)
-    
-    app.run(
-        host='0.0.0.0',
-        port=5000,
-        debug=True,
-        threaded=True
-    )
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)

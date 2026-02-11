@@ -47,19 +47,33 @@ def delete_session(session_id):
 
 # ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 def load_config(config_content):
-    """Загрузка конфигурации из config.txt"""
+    """Загрузка конфигурации из config.txt с поддержкой комментариев"""
     config = {}
+    
+    # Декодируем если нужно
     if isinstance(config_content, bytes):
         content = config_content.decode('utf-8', errors='ignore')
     else:
         content = config_content
     
+    # Разбиваем на строки и обрабатываем каждую
     lines = content.strip().split('\n')
     for line in lines:
         line = line.strip()
-        if line and '=' in line:
+        
+        # Пропускаем пустые строки и комментарии
+        if not line or line.startswith('#'):
+            continue
+        
+        # Ищем строки вида key=value
+        if '=' in line:
             key, value = line.split('=', 1)
-            config[key.strip()] = value.strip()
+            key = key.strip().lower()  # приводим к нижнему регистру
+            value = value.strip()
+            
+            # Пропускаем если значение пустое
+            if value:
+                config[key] = value
     
     return config
 

@@ -6,6 +6,7 @@ import time
 import tempfile
 import threading
 import io
+import base64
 from datetime import timedelta
 from flask import Flask, render_template, request, jsonify, session, send_from_directory
 from werkzeug.utils import secure_filename
@@ -116,80 +117,42 @@ def parse_csv_content(csv_content):
     
     return csv_data
 
-# ==================== АНАЛИЗ ФАЙЛОВ (БЕЗ УЧЕТА РЕГИСТРА) ====================
-def analyze_files(csv_data, uploaded_files):
+# ==================== АНАЛИЗ ФАЙЛОВ ====================
+def analyze_files(csv_data, uploaded_files_dict):
     """Анализ наличия файлов - сравниваем имена без учета регистра"""
     
-    # Создаем словарь с именами файлов в нижнем регистре
-    uploaded_files_lower = {}
-    for original_name, file_data in uploaded_files.items():
-        lower_name = original_name.lower()
-        uploaded_files_lower[lower_name] = {
-            'original_name': original_name,
-            'data': file_data['data'],
-            'size': file_data['size']
-        }
-    
-    # ВСЕ загруженные файлы (оригинальные имена)
-    all_uploaded = list(uploaded_files.keys())
-    
-    # Требуемые файлы из CSV
     required_files = set()
-    required_files_lower = set()
-    
     for row in csv_data:
         if row['main_photo']:
-            required_files.add(row['main_photo'])
-            required_files_lower.add(row['main_photo'].lower())
+            required_files.add(row['main_photo'].lower())
         for photo in row['comment_photos']:
             if photo:
-                required_files.add(photo)
-                required_files_lower.add(photo.lower())
+                required_files.add(photo.lower())
     
-    # Находим какие файлы есть (сравниваем в нижнем регистре)
-    found_files = []
-    missing_files = []
+    uploaded_lower = set(uploaded_files_dict.keys())
     
-    for req_file in required_files:
-        req_lower = req_file.lower()
-        if req_lower in uploaded_files_lower:
-            found_files.append({
-                'csv_name': req_file,
-                'actual_name': uploaded_files_lower[req_lower]['original_name']
-            })
-        else:
-            missing_files.append(req_file)
+    missing_files = list(required_files - uploaded_lower)
+    missing_files_original = []
     
-    # Лишние файлы (которых нет в required_files_lower)
-    extra_files = []
-    for uploaded_file in all_uploaded:
-        if uploaded_file.lower() not in required_files_lower:
-            extra_files.append(uploaded_file)
+    # Находим оригинальные имена отсутствующих файлов
+    for row in csv_data:
+        if row['main_photo'].lower() in missing_files:
+            missing_files_original.append(row['main_photo'])
+        for photo in row['comment_photos']:
+            if photo.lower() in missing_files:
+                missing_files_original.append(photo)
     
-    print(f"\n=== АНАЛИЗ ФАЙЛОВ (без учета регистра) ===")
-    print(f"Требуется файлов: {len(required_files)}")
-    print(f"Загружено файлов: {len(all_uploaded)}")
-    print(f"Найдено совпадений: {len(found_files)}")
-    print(f"Отсутствуют: {len(missing_files)}")
-    print(f"Лишние: {len(extra_files)}")
-    
-    if found_files:
-        print("\nСОВПАДЕНИЯ:")
-        for f in found_files[:10]:
-            print(f"  {f['csv_name']} -> {f['actual_name']}")
+    extra_files = list(uploaded_lower - required_files)
     
     return {
-        'required_files': list(required_files),
-        'uploaded_files': all_uploaded,
-        'missing_files': missing_files,
-        'extra_files': extra_files[:50],  # Ограничиваем вывод
         'required_count': len(required_files),
-        'uploaded_count': len(all_uploaded),
+        'uploaded_count': len(uploaded_lower),
         'missing_count': len(missing_files),
         'extra_count': len(extra_files),
-        'found_files': found_files,
+        'missing_files': list(set(missing_files_original))[:20],
+        'extra_files': extra_files[:20],
         'all_required_present': len(missing_files) == 0
-    }, uploaded_files_lower
+    }
 
 # ==================== РАЗБИВКА НА ГРУППЫ ====================
 def split_into_groups(photos, group_size=2):
@@ -280,8 +243,8 @@ def health():
 @app.route('/api/init', methods=['POST'])
 def init_upload():
     try:
-        uploaded_files = {}
-        uploaded_files_original = {}  # Сохраняем с оригинальными именами
+        uploaded_files = {}  # Ключ - имя в нижнем регистре, значение - base64 данные
+        uploaded_files_original = []  # Список оригинальных имен
         config_content = None
         csv_content = None
         
@@ -307,26 +270,22 @@ def init_upload():
                 print(f"  ✅ CSV: {original_name}")
                 continue
             
-            # Это фото - сохраняем с ОРИГИНАЛЬНЫМ именем
+            # Это фото - читаем и кодируем в base64
             file.seek(0)
-            file_data = io.BytesIO(file.read())
-            file_data.seek(0)
+            file_data = file.read()
             
-            # Сохраняем с оригинальным именем
-            uploaded_files_original[original_name] = {
-                'data': file_data,
+            # Кодируем в base64 для сохранения в сессии
+            file_base64 = base64.b64encode(file_data).decode('utf-8')
+            
+            # Сохраняем по имени в нижнем регистре
+            uploaded_files[name_lower] = {
                 'name': original_name,
-                'size': len(file_data.getvalue())
+                'data_base64': file_base64,
+                'size': len(file_data)
             }
             
-            # Также сохраняем в нижнем регистре для поиска
-            lower_name = original_name.lower()
-            uploaded_files[lower_name] = {
-                'original_name': original_name,
-                'data': file_data,
-                'size': len(file_data.getvalue())
-            }
-            print(f"  📸 ФОТО: {original_name} -> сохранено как '{lower_name}'")
+            uploaded_files_original.append(original_name)
+            print(f"  📸 ФОТО: {original_name} -> сохранено как '{name_lower}' ({len(file_data)} байт)")
         
         # Проверяем config.txt
         if not config_content:
@@ -377,34 +336,43 @@ def init_upload():
             print(f"    Основное: {row['main_photo']}")
             print(f"    Комментарии: {row['comment_photos']}")
         
-        # Анализируем файлы (без учета регистра)
-        analysis, uploaded_files_lower = analyze_files(csv_data, uploaded_files_original)
-        
-        # Обновляем uploaded_files в сессии - теперь с поиском по нижнему регистру
-        session_uploaded_files = {}
-        for lower_name, file_info in uploaded_files.items():
-            session_uploaded_files[lower_name] = file_info
+        # Анализируем файлы
+        analysis = analyze_files(csv_data, uploaded_files)
         
         print(f"\n{'='*60}")
-        print(f"СЕССИЯ БУДЕТ СОЗДАНА")
+        print(f"АНАЛИЗ ФАЙЛОВ")
         print(f"{'='*60}")
-        print(f"  Файлов в сессии: {len(session_uploaded_files)}")
+        print(f"  Требуется файлов: {analysis['required_count']}")
+        print(f"  Загружено файлов: {analysis['uploaded_count']}")
+        print(f"  Найдено: {analysis['uploaded_count'] - analysis['missing_count']}")
+        print(f"  Отсутствуют: {analysis['missing_count']}")
+        print(f"  Лишние: {analysis['extra_count']}")
         
-        # Создаем сессию
+        if analysis['missing_files']:
+            print(f"\n  ОТСУТСТВУЮТ ФАЙЛЫ:")
+            for f in analysis['missing_files'][:10]:
+                print(f"    - {f}")
+        
+        # СОЗДАЕМ СЕССИЮ
         session_id = str(int(time.time() * 1000))
+        
+        # КРИТИЧЕСКИ ВАЖНО: сохраняем файлы в сессии
         session_data = {
             'config': config,
             'csv_data': csv_data,
-            'uploaded_files': session_uploaded_files,  # Ключи в нижнем регистре
-            'uploaded_files_original': uploaded_files_original,  # Оригинальные имена
+            'uploaded_files': uploaded_files,  # Здесь хранятся base64 данные
             'analysis': analysis,
             'current_row': 0,
             'results': [],
-            'start_time': time.time()
+            'start_time': time.time(),
+            'uploaded_count': len(uploaded_files),
+            'uploaded_names': list(uploaded_files.keys())
         }
         
         set_session(session_id, session_data)
         print(f"\n✅ СЕССИЯ СОЗДАНА: {session_id}")
+        print(f"  Файлов в сессии: {len(uploaded_files)}")
+        print(f"  Имена: {list(uploaded_files.keys())[:5]}...")
         print(f"{'='*60}\n")
         
         return jsonify({
@@ -430,6 +398,7 @@ def process_row(row_index):
     
     session_data = get_session(session_id)
     if not session_data:
+        print(f"\n❌ СЕССИЯ НЕ НАЙДЕНА: {session_id}")
         return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
     
     try:
@@ -439,7 +408,7 @@ def process_row(row_index):
         
         row = csv_data[row_index]
         config = session_data['config']
-        uploaded_files = session_data['uploaded_files']  # Ключи в нижнем регистре
+        uploaded_files = session_data['uploaded_files']  # Ключи в нижнем регистре с base64
         
         print(f"\n{'='*60}")
         print(f"ОБРАБОТКА СТРОКИ {row_index + 1}")
@@ -458,18 +427,22 @@ def process_row(row_index):
             'errors': []
         }
         
-        # 1. ЗАГРУЗКА ОСНОВНОГО ФОТО - ИЩЕМ В НИЖНЕМ РЕГИСТРЕ
-        main_photo = row['main_photo']
-        main_photo_lower = main_photo.lower()
+        # 1. ЗАГРУЗКА ОСНОВНОГО ФОТО
+        main_photo_lower = row['main_photo'].lower()
         
         print(f"\n  Поиск файла '{main_photo_lower}'...")
+        print(f"  Доступные файлы в сессии: {list(uploaded_files.keys())[:5]}...")
         
         if main_photo_lower in uploaded_files:
             file_info = uploaded_files[main_photo_lower]
-            actual_name = file_info['original_name']
+            actual_name = file_info['name']
+            file_base64 = file_info['data_base64']
             print(f"  ✅ Файл НАЙДЕН: {actual_name}")
             
             try:
+                # Декодируем base64 в байты
+                file_data = base64.b64decode(file_base64)
+                
                 # Инициализируем VK загрузчик
                 uploader = VKUploader(
                     config['ACCESS_TOKEN'],
@@ -480,11 +453,8 @@ def process_row(row_index):
                 upload_server = uploader.get_album_upload_server(config['ALBUM_ID'])
                 print(f"  Получен upload server")
                 
-                # Создаем копию файла для загрузки
-                file_data = file_info['data']
-                file_data.seek(0)
-                
-                upload_file = io.BytesIO(file_data.read())
+                # Создаем BytesIO из данных
+                upload_file = io.BytesIO(file_data)
                 upload_file.seek(0)
                 
                 # Загружаем на сервер VK
@@ -537,16 +507,17 @@ def process_row(row_index):
                                 
                                 if photo_lower in uploaded_files:
                                     photo_info_file = uploaded_files[photo_lower]
-                                    photo_actual_name = photo_info_file['original_name']
+                                    photo_actual_name = photo_info_file['name']
+                                    photo_base64 = photo_info_file['data_base64']
                                     print(f"      ✅ Найден: {photo_actual_name}")
                                     
                                     try:
+                                        # Декодируем фото
+                                        photo_data = base64.b64decode(photo_base64)
+                                        
                                         wall_server = uploader.get_wall_upload_server()
                                         
-                                        photo_data = photo_info_file['data']
-                                        photo_data.seek(0)
-                                        
-                                        wall_file = io.BytesIO(photo_data.read())
+                                        wall_file = io.BytesIO(photo_data)
                                         wall_file.seek(0)
                                         
                                         files = {'photo': (photo_actual_name, wall_file, 'image/jpeg')}
@@ -619,16 +590,18 @@ def process_row(row_index):
                 print(f"  ❌ {error_msg}")
                 result['errors'].append(error_msg)
         else:
-            error_msg = f"Файл {main_photo} не найден (искали '{main_photo_lower}')"
+            error_msg = f"Файл {row['main_photo']} не найден (искали '{main_photo_lower}')"
             print(f"  ❌ {error_msg}")
             result['errors'].append(error_msg)
             
             # Показываем доступные файлы для отладки
-            print(f"\n  Доступные файлы (первые 10):")
-            for i, name in enumerate(list(uploaded_files.keys())[:10]):
+            print(f"\n  Доступные файлы в сессии (первые 20):")
+            for i, name in enumerate(sorted(list(uploaded_files.keys()))[:20]):
                 print(f"    {i+1}. {name}")
         
         # Сохраняем результат
+        if 'results' not in session_data:
+            session_data['results'] = []
         session_data['results'].append(result)
         session_data['current_row'] = row_index + 1
         set_session(session_id, session_data)

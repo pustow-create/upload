@@ -61,14 +61,21 @@ def load_config_from_file(config_content):
     else:
         content = config_content
     
+    print(f"=== ЗАГРУЗКА КОНФИГА ===")
+    print(f"Содержимое: {content[:200]}...")
+    
     for line in content.split('\n'):
         line = line.strip()
         if not line or line.startswith('#'):
             continue
         if '=' in line:
             key, value = line.split('=', 1)
-            config[key.strip().upper()] = value.strip()
+            key = key.strip().upper()
+            value = value.strip()
+            config[key] = value
+            print(f"Найден ключ: {key}")
     
+    print(f"Конфиг загружен: {list(config.keys())}")
     return config
 
 # ==================== ПАРСИНГ CSV ====================
@@ -89,30 +96,16 @@ def parse_csv_content(csv_content):
     
     # Пропускаем строку заголовка
     if lines and ('Файл изображения' in lines[0] or 'файл' in lines[0].lower()):
+        print(f"Пропущен заголовок: {lines[0]}")
         lines = lines[1:]
     
     csv_data = []
-    for line in lines:
+    for i, line in enumerate(lines):
         if not line.strip():
             continue
         
         # Разбиваем по разделителю
-        parts = []
-        current = []
-        in_quotes = False
-        
-        for char in line:
-            if char == '"':
-                in_quotes = not in_quotes
-            elif char == delimiter and not in_quotes:
-                parts.append(''.join(current).strip())
-                current = []
-            else:
-                current.append(char)
-        parts.append(''.join(current).strip())
-        
-        # Очищаем кавычки
-        parts = [p.strip('"') for p in parts]
+        parts = [p.strip().strip('"') for p in line.split(delimiter)]
         
         if len(parts) >= 2:
             main_photo = parts[0].strip()
@@ -122,12 +115,13 @@ def parse_csv_content(csv_content):
             if len(parts) > 2 and parts[2].strip():
                 comment_photos = [p.strip() for p in parts[2].split(';') if p.strip()]
             
-            if main_photo:  # Только если есть имя файла
+            if main_photo:
                 csv_data.append({
                     'main_photo': main_photo,
                     'description': description,
                     'comment_photos': comment_photos
                 })
+                print(f"Строка {i+1}: {main_photo}, комментариев: {len(comment_photos)}")
     
     return csv_data
 
@@ -174,14 +168,18 @@ class VKUploader:
             'v': VK_API_VERSION
         })
         
-        response = requests.post(f"{self.api_url}{method}", data=params, timeout=30)
-        response.raise_for_status()
-        result = response.json()
-        
-        if 'error' in result:
-            raise Exception(f"VK Error: {result['error'].get('error_msg', 'Unknown')}")
-        
-        return result['response']
+        try:
+            response = requests.post(f"{self.api_url}{method}", data=params, timeout=30)
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'error' in result:
+                error_msg = result['error'].get('error_msg', 'Unknown')
+                raise Exception(f"VK Error: {error_msg}")
+            
+            return result['response']
+        except Exception as e:
+            raise Exception(f"VK API Error: {str(e)}")
     
     def get_album_upload_server(self, album_id):
         params = {'album_id': album_id}
@@ -239,55 +237,101 @@ def health():
 @app.route('/api/init', methods=['POST'])
 def init_upload():
     try:
+        print("\n=== НАЧАЛО ИНИЦИАЛИЗАЦИИ ===")
+        
         uploaded_files = {}
         config_content = None
         csv_content = None
         
-        for file in request.files.getlist('files'):
-            name = secure_filename(file.filename)
+        # Получаем все файлы
+        files_list = request.files.getlist('files')
+        print(f"Получено файлов: {len(files_list)}")
+        
+        for file in files_list:
+            original_name = file.filename
+            secure_name = secure_filename(original_name)
+            print(f"Файл: {original_name} -> {secure_name}")
             
-            if name.lower() == 'config.txt':
+            # ИЩЕМ CONFIG.TXT - любые вариации имени
+            name_lower = original_name.lower()
+            if 'config' in name_lower and name_lower.endswith('.txt'):
+                print(f"✅ НАЙДЕН CONFIG.TXT: {original_name}")
                 config_content = file.read()
-            elif name.lower().endswith('.csv'):
+                print(f"Размер config: {len(config_content)} байт")
+                
+            # ИЩЕМ CSV ФАЙЛ
+            elif name_lower.endswith('.csv'):
+                print(f"✅ НАЙДЕН CSV: {original_name}")
                 csv_content = file.read()
+                print(f"Размер CSV: {len(csv_content)} байт")
+                
+            # ОСТАЛЬНЫЕ ФАЙЛЫ - ФОТОГРАФИИ
             else:
-                # КРИТИЧЕСКИ ВАЖНО: сохраняем файл в BytesIO
+                # Сохраняем файл в BytesIO
                 file.seek(0)
                 file_data = io.BytesIO()
                 file_data.write(file.read())
                 file_data.seek(0)
                 
-                uploaded_files[name] = {
+                # Используем оригинальное имя для ключа
+                key_name = original_name
+                uploaded_files[key_name] = {
                     'data': file_data,
-                    'name': name,
+                    'name': original_name,
                     'size': len(file_data.getvalue())
                 }
+                print(f"📷 Фото: {original_name} ({uploaded_files[key_name]['size']} байт)")
         
+        # ПРОВЕРКА НАЛИЧИЯ CONFIG.TXT
         if not config_content:
-            return jsonify({'success': False, 'error': 'Нет config.txt'}), 400
+            print("❌ CONFIG.TXT НЕ НАЙДЕН!")
+            print("Имена файлов:", [f.filename for f in files_list])
+            return jsonify({
+                'success': False, 
+                'error': 'Не найден файл config.txt. Убедитесь, что в папке есть файл с именем config.txt'
+            }), 400
         
+        # ПРОВЕРКА НАЛИЧИЯ CSV
         if not csv_content:
-            return jsonify({'success': False, 'error': 'Нет CSV файла'}), 400
+            print("❌ CSV ФАЙЛ НЕ НАЙДЕН!")
+            return jsonify({
+                'success': False, 
+                'error': 'Не найден CSV файл. Убедитесь, что в папке есть файл с расширением .csv'
+            }), 400
         
-        # Загружаем конфиг
+        # ЗАГРУЗКА КОНФИГА
         config = load_config_from_file(config_content)
         
+        # ПРОВЕРКА ОБЯЗАТЕЛЬНЫХ КЛЮЧЕЙ
         if 'ACCESS_TOKEN' not in config:
-            return jsonify({'success': False, 'error': 'Нет ACCESS_TOKEN в config.txt'}), 400
+            return jsonify({
+                'success': False, 
+                'error': 'В config.txt отсутствует ACCESS_TOKEN'
+            }), 400
         
         if 'ALBUM_ID' not in config:
-            return jsonify({'success': False, 'error': 'Нет ALBUM_ID в config.txt'}), 400
+            return jsonify({
+                'success': False, 
+                'error': 'В config.txt отсутствует ALBUM_ID'
+            }), 400
         
-        # Парсим CSV
+        # ПАРСИНГ CSV
         csv_data = parse_csv_content(csv_content)
         
         if not csv_data:
-            return jsonify({'success': False, 'error': 'CSV файл пуст'}), 400
+            return jsonify({
+                'success': False, 
+                'error': 'CSV файл пуст или имеет неправильный формат'
+            }), 400
         
-        # Анализируем файлы
+        # АНАЛИЗ ФАЙЛОВ
         analysis = analyze_files(csv_data, uploaded_files)
+        print(f"Анализ: требуется {analysis['required_count']} файлов, загружено {analysis['uploaded_count']}")
         
-        # Создаем сессию
+        if analysis['missing_files']:
+            print(f"Отсутствуют: {analysis['missing_files'][:5]}")
+        
+        # СОЗДАНИЕ СЕССИИ
         session_id = str(int(time.time() * 1000))
         session_data = {
             'config': config,
@@ -300,15 +344,21 @@ def init_upload():
         }
         
         set_session(session_id, session_data)
+        print(f"✅ Сессия создана: {session_id}")
+        print(f"Всего записей: {len(csv_data)}")
         
         return jsonify({
             'success': True,
             'session_id': session_id,
             'total_rows': len(csv_data),
-            'file_analysis': analysis
+            'file_analysis': analysis,
+            'message': f'Найдено {len(csv_data)} записей для обработки'
         })
         
     except Exception as e:
+        print(f"❌ Ошибка инициализации: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ==================== ОБРАБОТКА СТРОКИ ====================
@@ -332,6 +382,10 @@ def process_row(row_index):
         config = session_data['config']
         uploaded_files = session_data['uploaded_files']
         
+        print(f"\n=== ОБРАБОТКА СТРОКИ {row_index + 1} ===")
+        print(f"Основное фото: {row['main_photo']}")
+        print(f"Фото для комментариев: {row['comment_photos']}")
+        
         # Инициализируем VK загрузчик
         uploader = VKUploader(
             config['ACCESS_TOKEN'],
@@ -353,14 +407,16 @@ def process_row(row_index):
         
         if main_photo in uploaded_files:
             try:
+                print(f"Загрузка основного фото: {main_photo}")
+                
                 # Получаем сервер для загрузки
                 upload_server = uploader.get_album_upload_server(config['ALBUM_ID'])
+                print(f"Получен upload server: {upload_server['upload_url'][:50]}...")
                 
-                # КРИТИЧЕСКИ ВАЖНО: создаем НОВУЮ копию файла
+                # Создаем НОВУЮ копию файла
                 file_data = uploaded_files[main_photo]['data']
                 file_data.seek(0)
                 
-                # Создаем новый BytesIO для загрузки
                 upload_file = io.BytesIO()
                 upload_file.write(file_data.read())
                 upload_file.seek(0)
@@ -374,6 +430,7 @@ def process_row(row_index):
                 )
                 upload_response.raise_for_status()
                 upload_result = upload_response.json()
+                print(f"Фото загружено на сервер VK")
                 
                 # Сохраняем в альбоме
                 save_result = uploader.save_album_photo(
@@ -391,14 +448,17 @@ def process_row(row_index):
                         'vk_url': f"photo{photo_info['owner_id']}_{photo_info['id']}"
                     }
                     result['success'] = True
+                    print(f"✅ Основное фото сохранено: {result['main_photo_result']['vk_url']}")
                     
                     # 2. ЗАГРУЗКА ФОТО ДЛЯ КОММЕНТАРИЕВ
                     comment_photos = row['comment_photos']
                     
                     if comment_photos:
                         groups = split_into_groups(comment_photos, 2)
+                        print(f"Комментарии: {len(groups)} групп")
                         
                         for g_idx, group in enumerate(groups):
+                            print(f"Группа {g_idx + 1}: {group}")
                             group_result = {
                                 'group_index': g_idx,
                                 'photos': [],
@@ -409,10 +469,12 @@ def process_row(row_index):
                             for photo_name in group:
                                 if photo_name in uploaded_files:
                                     try:
+                                        print(f"Загрузка фото для комментария: {photo_name}")
+                                        
                                         # Получаем сервер для загрузки на стену
                                         wall_server = uploader.get_wall_upload_server()
                                         
-                                        # КРИТИЧЕСКИ ВАЖНО: создаем НОВУЮ копию
+                                        # Создаем НОВУЮ копию
                                         photo_data = uploaded_files[photo_name]['data']
                                         photo_data.seek(0)
                                         
@@ -445,12 +507,15 @@ def process_row(row_index):
                                                 'owner_id': wall_info['owner_id'],
                                                 'vk_url': f"photo{wall_info['owner_id']}_{wall_info['id']}"
                                             })
+                                            print(f"✅ Фото загружено: {photo_name}")
                                         
                                         time.sleep(0.3)
                                         
                                     except Exception as e:
-                                        group_result['errors'] = [str(e)]
-                                        result['errors'].append(f"{photo_name}: {str(e)}")
+                                        error_msg = f"{photo_name}: {str(e)}"
+                                        print(f"❌ {error_msg}")
+                                        group_result['errors'] = group_result.get('errors', []) + [error_msg]
+                                        result['errors'].append(error_msg)
                             
                             # Создаем комментарий для группы
                             if group_result['photos']:
@@ -459,6 +524,7 @@ def process_row(row_index):
                                         f"photo{p['owner_id']}_{p['photo_id']}"
                                         for p in group_result['photos']
                                     ]
+                                    print(f"Создание комментария с {len(attachments)} фото")
                                     
                                     comment = uploader.create_album_comment(
                                         result['main_photo_result']['owner_id'],
@@ -469,19 +535,26 @@ def process_row(row_index):
                                     group_result['success'] = True
                                     group_result['comment_id'] = comment.get('comment_id')
                                     group_result['attachments_count'] = len(attachments)
+                                    print(f"✅ Комментарий создан")
                                     
                                 except Exception as e:
-                                    group_result['errors'] = group_result.get('errors', []) + [str(e)]
-                                    result['errors'].append(f"Комментарий: {str(e)}")
+                                    error_msg = f"Комментарий: {str(e)}"
+                                    print(f"❌ {error_msg}")
+                                    group_result['errors'] = group_result.get('errors', []) + [error_msg]
+                                    result['errors'].append(error_msg)
                             
                             result['comment_results'].append(group_result)
                             time.sleep(0.5)
                 
             except Exception as e:
-                result['errors'].append(f"Ошибка загрузки: {str(e)}")
+                error_msg = f"Ошибка загрузки: {str(e)}"
+                print(f"❌ {error_msg}")
+                result['errors'].append(error_msg)
                 result['success'] = False
         else:
-            result['errors'].append(f"Файл {main_photo} не найден")
+            error_msg = f"Файл {main_photo} не найден в загруженных файлах"
+            print(f"❌ {error_msg}")
+            result['errors'].append(error_msg)
         
         # Сохраняем результат
         session_data['results'].append(result)
@@ -501,6 +574,60 @@ def process_row(row_index):
         })
         
     except Exception as e:
+        print(f"❌ Ошибка обработки строки {row_index}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ==================== ТЕСТ VK ====================
+@app.route('/api/test-vk', methods=['POST'])
+def test_vk():
+    try:
+        print("\n=== ТЕСТ VK API ===")
+        
+        for file in request.files.getlist('files'):
+            name_lower = file.filename.lower()
+            if 'config' in name_lower and name_lower.endswith('.txt'):
+                print(f"Найден config: {file.filename}")
+                config_content = file.read()
+                config = load_config_from_file(config_content)
+                
+                token = config.get('ACCESS_TOKEN')
+                if not token:
+                    return jsonify({'success': False, 'error': 'В config.txt нет ACCESS_TOKEN'}), 400
+                
+                # Тестовый запрос к VK
+                params = {
+                    'access_token': token,
+                    'v': VK_API_VERSION
+                }
+                
+                response = requests.post(
+                    'https://api.vk.com/method/users.get',
+                    data=params,
+                    timeout=10
+                )
+                result = response.json()
+                
+                if 'error' in result:
+                    return jsonify({
+                        'success': False, 
+                        'error': f"VK API: {result['error']['error_msg']}"
+                    }), 400
+                
+                user = result['response'][0]
+                print(f"✅ VK API работает! Пользователь: {user.get('first_name')} {user.get('last_name')}")
+                
+                return jsonify({
+                    'success': True, 
+                    'message': 'Подключение к VK успешно',
+                    'user_info': user
+                })
+        
+        return jsonify({'success': False, 'error': 'Не найден config.txt'}), 400
+        
+    except Exception as e:
+        print(f"❌ Ошибка теста VK: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ==================== ФИНАЛИЗАЦИЯ ====================
@@ -530,39 +657,8 @@ def finalize(session_id):
             'errors': [e for r in results for e in r.get('errors', [])][:50]
         }
         
-        # Очищаем сессию
-        delete_session(session_id)
-        
+        # Не удаляем сессию сразу, даем время на просмотр отчета
         return jsonify({'success': True, 'report': report})
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-# ==================== ТЕСТ VK ====================
-@app.route('/api/test-vk', methods=['POST'])
-def test_vk():
-    try:
-        for file in request.files.getlist('files'):
-            if file.filename.lower() == 'config.txt':
-                config = load_config_from_file(file.read())
-                token = config.get('ACCESS_TOKEN')
-                
-                if not token:
-                    return jsonify({'success': False, 'error': 'Нет токена'}), 400
-                
-                response = requests.post(
-                    'https://api.vk.com/method/users.get',
-                    data={'access_token': token, 'v': VK_API_VERSION},
-                    timeout=10
-                )
-                result = response.json()
-                
-                if 'error' in result:
-                    return jsonify({'success': False, 'error': result['error']['error_msg']}), 400
-                
-                return jsonify({'success': True, 'user': result['response'][0]})
-        
-        return jsonify({'success': False, 'error': 'Нет config.txt'}), 400
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

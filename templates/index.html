@@ -15,34 +15,38 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             line-height: 1.6;
             color: #333;
-            background: #f5f5f5;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
         
         .container {
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .header .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
         }
         
         .card {
             background: white;
-            border-radius: 10px;
+            border-radius: 12px;
             padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
             margin-bottom: 20px;
-        }
-        
-        h1 {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #2c3e50;
-        }
-        
-        h2 {
-            color: #34495e;
-            margin-bottom: 20px;
-            font-size: 1.5rem;
         }
         
         .step {
@@ -53,204 +57,496 @@
         
         .step:last-child {
             border-bottom: none;
+            margin-bottom: 0;
         }
         
         .step-header {
             display: flex;
             align-items: center;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
         
         .step-number {
-            width: 30px;
-            height: 30px;
-            background: #3498db;
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-right: 10px;
             font-weight: bold;
+            font-size: 1.2rem;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        
+        .step-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2c3e50;
         }
         
         .upload-area {
-            border: 3px dashed #3498db;
-            border-radius: 10px;
-            padding: 40px 20px;
+            border: 3px dashed #667eea;
+            border-radius: 12px;
+            padding: 60px 20px;
             text-align: center;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
             background: #f8f9fa;
             margin: 20px 0;
+            position: relative;
+            overflow: hidden;
         }
         
         .upload-area:hover {
-            background: #e8f4fc;
-            border-color: #2980b9;
+            background: #eef2ff;
+            border-color: #5a67d8;
+            transform: translateY(-2px);
+        }
+        
+        .upload-area.dragover {
+            background: #e3f2fd;
+            border-color: #2196f3;
+            box-shadow: 0 0 20px rgba(33, 150, 243, 0.2);
         }
         
         .upload-icon {
-            font-size: 48px;
-            color: #3498db;
-            margin-bottom: 15px;
+            font-size: 64px;
+            color: #667eea;
+            margin-bottom: 20px;
+            opacity: 0.8;
+        }
+        
+        .upload-text {
+            font-size: 1.2rem;
+            color: #4a5568;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            color: #718096;
+            font-size: 0.95rem;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.5;
         }
         
         .file-list {
-            max-height: 300px;
+            max-height: 400px;
             overflow-y: auto;
             margin: 20px 0;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 10px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f7fafc;
         }
         
-        .file-item {
-            padding: 8px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
+        .file-category {
+            padding: 15px;
+            border-bottom: 1px solid #e2e8f0;
         }
         
-        .file-item:last-child {
+        .file-category:last-child {
             border-bottom: none;
         }
         
-        .buttons {
+        .file-category h4 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
             display: flex;
-            gap: 10px;
-            margin-top: 20px;
+            align-items: center;
         }
         
-        button {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s;
+        .file-category h4::before {
+            content: '📁';
+            margin-right: 8px;
+            font-size: 1.2rem;
         }
         
-        .btn-primary {
-            background: #3498db;
-            color: white;
+        .file-items {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 8px;
         }
         
-        .btn-primary:hover:not(:disabled) {
-            background: #2980b9;
+        .file-item {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
         }
         
-        .btn-secondary {
-            background: #95a5a6;
-            color: white;
+        .file-item:hover {
+            border-color: #cbd5e0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         
-        .btn-secondary:hover:not(:disabled) {
-            background: #7f8c8d;
+        .file-icon {
+            margin-right: 10px;
+            font-size: 1.2rem;
+            color: #4a5568;
         }
         
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .file-name {
+            font-weight: 500;
+            color: #2d3748;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .file-size {
+            font-size: 0.85rem;
+            color: #718096;
+        }
+        
+        .file-status {
+            margin-left: 10px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        
+        .status-required {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .status-extra {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        
+        .status-missing {
+            background: #feebc8;
+            color: #744210;
+        }
+        
+        .analysis-results {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .analysis-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .analysis-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        
+        .icon-success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .icon-warning {
+            background: #feebc8;
+            color: #744210;
+        }
+        
+        .icon-error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        
+        .icon-info {
+            background: #bee3f8;
+            color: #2a4365;
+        }
+        
+        .analysis-text {
+            flex: 1;
+        }
+        
+        .analysis-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 4px;
+        }
+        
+        .analysis-details {
+            font-size: 0.9rem;
+            color: #718096;
         }
         
         .progress-container {
             margin: 30px 0;
         }
         
-        .progress-bar {
-            height: 20px;
-            background: #ecf0f1;
-            border-radius: 10px;
-            overflow: hidden;
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 10px;
+        }
+        
+        .progress-text {
+            font-weight: 600;
+            color: #2d3748;
+        }
+        
+        .progress-percentage {
+            font-weight: 700;
+            color: #667eea;
+            font-size: 1.2rem;
+        }
+        
+        .progress-bar {
+            height: 12px;
+            background: #e2e8f0;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
         }
         
         .progress-fill {
             height: 100%;
-            background: #2ecc71;
-            width: 0%;
-            transition: width 0.3s;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 6px;
+            transition: width 0.5s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background-image: linear-gradient(
+                45deg,
+                rgba(255, 255, 255, 0.15) 25%,
+                transparent 25%,
+                transparent 50%,
+                rgba(255, 255, 255, 0.15) 50%,
+                rgba(255, 255, 255, 0.15) 75%,
+                transparent 75%,
+                transparent
+            );
+            background-size: 1rem 1rem;
+            animation: progress-stripes 1s linear infinite;
+        }
+        
+        @keyframes progress-stripes {
+            from { background-position: 1rem 0; }
+            to { background-position: 0 0; }
         }
         
         .log-container {
-            margin-top: 30px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 15px;
-            background: #f8f9fa;
-            max-height: 400px;
+            max-height: 500px;
             overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #1a202c;
+            margin: 20px 0;
         }
         
         .log-entry {
-            padding: 8px;
-            border-bottom: 1px solid #eee;
-            font-family: 'Courier New', monospace;
-            font-size: 0.9em;
+            padding: 12px 15px;
+            border-bottom: 1px solid #2d3748;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
         }
         
-        .log-entry.success {
-            color: #27ae60;
+        .log-entry:last-child {
+            border-bottom: none;
         }
         
-        .log-entry.error {
-            color: #e74c3c;
+        .log-timestamp {
+            color: #a0aec0;
+            margin-right: 10px;
+            user-select: none;
         }
         
-        .log-entry.info {
-            color: #3498db;
+        .log-message {
+            color: #e2e8f0;
         }
         
-        .log-entry.warning {
-            color: #f39c12;
+        .log-success {
+            color: #68d391;
         }
         
-        .status {
-            padding: 15px;
-            border-radius: 5px;
-            margin: 10px 0;
+        .log-error {
+            color: #fc8181;
         }
         
-        .status.success {
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
+        .log-warning {
+            color: #f6ad55;
         }
         
-        .status.error {
-            background: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
+        .log-info {
+            color: #63b3ed;
         }
         
-        .status.info {
-            background: #d1ecf1;
-            border: 1px solid #bee5eb;
-            color: #0c5460;
+        .buttons {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
         }
         
-        .hidden {
-            display: none;
+        button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 140px;
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #718096;
+            color: white;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #4a5568;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: #fc8181;
+            color: white;
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            background: #f56565;
+            transform: translateY(-2px);
+        }
+        
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-success:hover:not(:disabled) {
+            background: #38a169;
+            transform: translateY(-2px);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .status-ready {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .status-processing {
+            background: #feebc8;
+            color: #744210;
+        }
+        
+        .status-completed {
+            background: #bee3f8;
+            color: #2a4365;
+        }
+        
+        .status-error {
+            background: #fed7d7;
+            color: #742a2a;
         }
         
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3498db;
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
-            width: 30px;
-            height: 30px;
+            border-top-color: white;
             animation: spin 1s linear infinite;
-            margin: 0 auto;
+            margin-right: 10px;
         }
         
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .results-card {
+            background: #f0fff4;
+            border: 2px solid #c6f6d5;
+        }
+        
+        .error-card {
+            background: #fff5f5;
+            border: 2px solid #fed7d7;
+        }
+        
+        .file-count {
+            display: inline-block;
+            background: #e2e8f0;
+            color: #4a5568;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            margin-left: 8px;
+            font-weight: 600;
         }
         
         @media (max-width: 768px) {
-            body {
+            .container {
                 padding: 10px;
             }
             
@@ -258,180 +554,217 @@
                 padding: 20px;
             }
             
+            .header h1 {
+                font-size: 2rem;
+            }
+            
             .buttons {
                 flex-direction: column;
+            }
+            
+            button {
+                width: 100%;
+            }
+            
+            .file-items {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📤 VK Photo Uploader</h1>
+        <div class="header">
+            <h1>📤 VK Photo Uploader</h1>
+            <div class="subtitle">Загрузка фото в альбом ВКонтакте с комментариями</div>
+        </div>
         
         <div class="card">
-            <div class="step">
+            <!-- Шаг 1: Выбор папки -->
+            <div class="step" id="step1">
                 <div class="step-header">
                     <div class="step-number">1</div>
-                    <h2>Выберите папку</h2>
+                    <div class="step-title">Выберите папку с файлами</div>
                 </div>
                 
-                <p>Выберите папку, содержащую:</p>
-                <ul style="margin: 10px 0 20px 20px;">
-                    <li><strong>config.txt</strong> - с настройками VK API</li>
-                    <li><strong>.csv файл</strong> - с данными для загрузки</li>
-                    <li><strong>Фотографии</strong> - все фото, указанные в CSV</li>
-                </ul>
+                <p>Выберите папку, содержащую все необходимые файлы:</p>
                 
-                <div 
-                    class="upload-area" 
-                    id="dropZone"
-                    onclick="document.getElementById('folderInput').click()"
-                >
+                <div class="upload-area" id="dropZone">
                     <div class="upload-icon">📁</div>
-                    <p><strong>Перетащите сюда папку</strong></p>
-                    <p>или нажмите для выбора</p>
-                    <p style="margin-top: 10px; color: #666; font-size: 0.9em;">
-                        Выберите всю папку со всеми файлами
-                    </p>
+                    <div class="upload-text">Перетащите сюда папку или нажмите для выбора</div>
+                    <div class="upload-hint">
+                        В папке должны быть: config.txt (с настройками VK), CSV файл (с данными) и все фотографии
+                    </div>
                 </div>
                 
-                <input 
-                    type="file" 
-                    id="folderInput" 
-                    webkitdirectory 
-                    directory 
-                    multiple 
-                    hidden
-                    onchange="handleFolderSelect(event)"
-                >
+                <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
                 
-                <div id="fileList" class="file-list hidden"></div>
-                
-                <div class="buttons">
-                    <button 
-                        id="checkBtn" 
-                        class="btn-primary" 
-                        onclick="checkFiles()"
-                        disabled
-                    >
-                        Проверить файлы
-                    </button>
+                <div id="fileAnalysis" class="hidden">
+                    <div class="analysis-results" id="fileAnalysisResults">
+                        <!-- Анализ файлов будет здесь -->
+                    </div>
+                    
+                    <div class="buttons">
+                        <button id="btnStartUpload" class="btn-primary" onclick="startUpload()" disabled>
+                            <span class="spinner hidden" id="initSpinner"></span>
+                            Начать загрузку
+                        </button>
+                        <button id="btnTestVK" class="btn-secondary" onclick="testVKConnection()">
+                            <span class="spinner hidden" id="testSpinner"></span>
+                            Тест подключения VK
+                        </button>
+                    </div>
                 </div>
-                
-                <div id="checkStatus"></div>
             </div>
             
-            <div class="step">
+            <!-- Шаг 2: Прогресс загрузки -->
+            <div class="step hidden" id="step2">
                 <div class="step-header">
                     <div class="step-number">2</div>
-                    <h2>Начните загрузку</h2>
-                </div>
-                
-                <div id="uploadStatus"></div>
-                
-                <div class="buttons">
-                    <button 
-                        id="startBtn" 
-                        class="btn-primary" 
-                        onclick="startUpload()"
-                        disabled
-                    >
-                        Начать загрузку в VK
-                    </button>
-                </div>
-            </div>
-            
-            <div class="step">
-                <div class="step-header">
-                    <div class="step-number">3</div>
-                    <h2>Прогресс загрузки</h2>
+                    <div class="step-title">Загрузка в VK</div>
+                    <span class="status-badge status-processing" id="uploadStatusBadge">Ожидание</span>
                 </div>
                 
                 <div class="progress-container">
-                    <div class="progress-bar">
-                        <div class="progress-fill" id="progressFill"></div>
+                    <div class="progress-header">
+                        <div class="progress-text">Прогресс загрузки</div>
+                        <div class="progress-percentage" id="progressPercentage">0%</div>
                     </div>
-                    <div class="progress-text" id="progressText">0%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                    </div>
                 </div>
                 
-                <div id="processStatus"></div>
+                <div id="currentRowInfo" class="analysis-item">
+                    <div class="analysis-icon icon-info">⏳</div>
+                    <div class="analysis-text">
+                        <div class="analysis-title">Ожидание начала загрузки...</div>
+                        <div class="analysis-details">Подготовка к обработке</div>
+                    </div>
+                </div>
                 
                 <div class="buttons">
-                    <button 
-                        id="cancelBtn" 
-                        class="btn-secondary" 
-                        onclick="cancelUpload()"
-                        disabled
-                    >
+                    <button id="btnPauseUpload" class="btn-secondary hidden" onclick="pauseUpload()">
+                        Пауза
+                    </button>
+                    <button id="btnCancelUpload" class="btn-danger" onclick="cancelUpload()">
                         Отменить
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Шаг 3: Результаты -->
+            <div class="step hidden" id="step3">
+                <div class="step-header">
+                    <div class="step-number">3</div>
+                    <div class="step-title">Результаты загрузки</div>
+                    <span class="status-badge status-completed" id="resultStatusBadge">Завершено</span>
+                </div>
+                
+                <div id="finalResults">
+                    <!-- Результаты будут здесь -->
+                </div>
+                
+                <div class="buttons">
+                    <button id="btnDownloadReport" class="btn-secondary" onclick="downloadReport()">
+                        📥 Скачать отчет
+                    </button>
+                    <button id="btnStartNew" class="btn-primary" onclick="startNewUpload()">
+                        🔄 Начать новую загрузку
                     </button>
                 </div>
             </div>
         </div>
         
+        <!-- Лог выполнения -->
         <div class="card">
-            <h2>📝 Лог выполнения</h2>
+            <div class="step-header">
+                <div class="step-title">📝 Лог выполнения</div>
+                <button class="btn-secondary" style="padding: 8px 16px; font-size: 0.9rem;" onclick="clearLog()">
+                    Очистить лог
+                </button>
+            </div>
+            
             <div class="log-container" id="logContainer">
-                <div class="log-entry info">Готов к работе. Выберите папку с файлами.</div>
+                <div class="log-entry">
+                    <span class="log-timestamp">[00:00:00]</span>
+                    <span class="log-message log-info">Готов к работе. Выберите папку с файлами.</span>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        // Глобальные переменные
         let selectedFiles = [];
-        let uploadInProgress = false;
         let currentSessionId = null;
+        let uploadInProgress = false;
+        let uploadPaused = false;
         let currentRow = 0;
         let totalRows = 0;
+        let fileAnalysis = null;
         
-        // Элементы DOM
+        // DOM элементы
         const dropZone = document.getElementById('dropZone');
         const folderInput = document.getElementById('folderInput');
-        const fileList = document.getElementById('fileList');
-        const checkBtn = document.getElementById('checkBtn');
-        const startBtn = document.getElementById('startBtn');
-        const cancelBtn = document.getElementById('cancelBtn');
-        const checkStatus = document.getElementById('checkStatus');
-        const uploadStatus = document.getElementById('uploadStatus');
-        const processStatus = document.getElementById('processStatus');
+        const fileAnalysisDiv = document.getElementById('fileAnalysis');
+        const fileAnalysisResults = document.getElementById('fileAnalysisResults');
+        const btnStartUpload = document.getElementById('btnStartUpload');
+        const btnTestVK = document.getElementById('btnTestVK');
+        const initSpinner = document.getElementById('initSpinner');
+        const testSpinner = document.getElementById('testSpinner');
+        const step1 = document.getElementById('step1');
+        const step2 = document.getElementById('step2');
+        const step3 = document.getElementById('step3');
         const progressFill = document.getElementById('progressFill');
-        const progressText = document.getElementById('progressText');
+        const progressPercentage = document.getElementById('progressPercentage');
+        const uploadStatusBadge = document.getElementById('uploadStatusBadge');
+        const currentRowInfo = document.getElementById('currentRowInfo');
         const logContainer = document.getElementById('logContainer');
+        const finalResults = document.getElementById('finalResults');
+        const resultStatusBadge = document.getElementById('resultStatusBadge');
         
         // Функции логирования
         function addLog(message, type = 'info') {
-            const entry = document.createElement('div');
-            entry.className = `log-entry ${type}`;
-            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            logContainer.appendChild(entry);
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            
+            logEntry.innerHTML = `
+                <span class="log-timestamp">[${timestamp}]</span>
+                <span class="log-message log-${type}">${message}</span>
+            `;
+            
+            logContainer.appendChild(logEntry);
             logContainer.scrollTop = logContainer.scrollHeight;
         }
         
-        function showStatus(element, message, type = 'info') {
-            element.innerHTML = `
-                <div class="status ${type}">
-                    ${message}
+        function clearLog() {
+            logContainer.innerHTML = `
+                <div class="log-entry">
+                    <span class="log-timestamp">[00:00:00]</span>
+                    <span class="log-message log-info">Лог очищен</span>
                 </div>
             `;
         }
         
-        function clearStatus(element) {
-            element.innerHTML = '';
-        }
-        
         // Обработчики drag & drop
+        dropZone.addEventListener('click', () => {
+            folderInput.click();
+        });
+        
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            dropZone.style.background = '#e8f4fc';
+            dropZone.classList.add('dragover');
         });
         
         dropZone.addEventListener('dragleave', () => {
-            dropZone.style.background = '#f8f9fa';
+            dropZone.classList.remove('dragover');
         });
         
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropZone.style.background = '#f8f9fa';
+            dropZone.classList.remove('dragover');
             
             const items = e.dataTransfer.items;
             if (items) {
@@ -439,132 +772,23 @@
             }
         });
         
-        function handleDroppedItems(items) {
-            const files = [];
-            
-            function traverseFileTree(item, path) {
-                if (item.isFile) {
-                    item.file(file => {
-                        file.filepath = path + file.name;
-                        files.push(file);
-                        if (files.length === items.length) {
-                            displayFiles(files);
-                        }
-                    });
-                } else if (item.isDirectory) {
-                    const dirReader = item.createReader();
-                    dirReader.readEntries(entries => {
-                        for (let entry of entries) {
-                            traverseFileTree(entry, path + item.name + '/');
-                        }
-                    });
-                }
-            }
-            
-            for (let i = 0; i < items.length; i++) {
-                const entry = items[i].webkitGetAsEntry();
-                if (entry) {
-                    traverseFileTree(entry, '');
-                }
-            }
-        }
+        folderInput.addEventListener('change', (e) => {
+            selectedFiles = Array.from(e.target.files);
+            handleSelectedFiles();
+        });
         
-        function handleFolderSelect(event) {
-            selectedFiles = Array.from(event.target.files);
-            displayFiles(selectedFiles);
-        }
-        
-        function displayFiles(files) {
-            fileList.innerHTML = '';
-            fileList.classList.remove('hidden');
-            
-            // Группируем файлы
-            const configFiles = files.filter(f => f.name.toLowerCase() === 'config.txt');
-            const csvFiles = files.filter(f => f.name.toLowerCase().endsWith('.csv'));
-            const imageFiles = files.filter(f => 
-                f.name.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp)$/)
-            );
-            
-            // Отображаем config.txt
-            if (configFiles.length > 0) {
-                const section = document.createElement('div');
-                section.innerHTML = '<h4>Конфигурация:</h4>';
-                configFiles.forEach(file => {
-                    section.appendChild(createFileItem(file));
-                });
-                fileList.appendChild(section);
-            }
-            
-            // Отображаем CSV файлы
-            if (csvFiles.length > 0) {
-                const section = document.createElement('div');
-                section.innerHTML = '<h4>CSV файлы:</h4>';
-                csvFiles.forEach(file => {
-                    section.appendChild(createFileItem(file));
-                });
-                fileList.appendChild(section);
-            }
-            
-            // Отображаем изображения
-            if (imageFiles.length > 0) {
-                const section = document.createElement('div');
-                section.innerHTML = `<h4>Фотографии (${imageFiles.length}):</h4>`;
-                const imagesList = document.createElement('div');
-                imagesList.style.maxHeight = '150px';
-                imagesList.style.overflowY = 'auto';
-                imageFiles.slice(0, 20).forEach(file => {
-                    imagesList.appendChild(createFileItem(file));
-                });
-                
-                if (imageFiles.length > 20) {
-                    const more = document.createElement('div');
-                    more.textContent = `... и еще ${imageFiles.length - 20} файлов`;
-                    more.style.color = '#666';
-                    more.style.fontStyle = 'italic';
-                    more.style.padding = '5px';
-                    imagesList.appendChild(more);
-                }
-                
-                section.appendChild(imagesList);
-                fileList.appendChild(section);
-            }
-            
-            checkBtn.disabled = false;
-            addLog(`Загружено ${files.length} файлов`, 'info');
-        }
-        
-        function createFileItem(file) {
-            const div = document.createElement('div');
-            div.className = 'file-item';
-            
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = file.name;
-            
-            const sizeSpan = document.createElement('span');
-            sizeSpan.textContent = formatFileSize(file.size);
-            sizeSpan.style.color = '#666';
-            
-            div.appendChild(nameSpan);
-            div.appendChild(sizeSpan);
-            
-            return div;
-        }
-        
-        function formatFileSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-        }
-        
-        async function checkFiles() {
+        // Обработка выбранных файлов
+        async function handleSelectedFiles() {
             if (selectedFiles.length === 0) {
-                showStatus(checkStatus, 'Пожалуйста, выберите папку с файлами', 'error');
+                addLog('Нет выбранных файлов', 'warning');
                 return;
             }
             
-            checkBtn.disabled = true;
-            clearStatus(checkStatus);
-            addLog('Проверка файлов...', 'info');
+            addLog(`Загружено ${selectedFiles.length} файлов`, 'info');
+            
+            // Показываем спиннер
+            initSpinner.classList.remove('hidden');
+            btnStartUpload.disabled = true;
             
             try {
                 const formData = new FormData();
@@ -572,211 +796,438 @@
                     formData.append('files', file);
                 });
                 
-                const response = await fetch('/api/check-files', {
+                const response = await fetch('/api/init', {
                     method: 'POST',
-                    body: formData,
-                    headers: {
-                        'Accept': 'application/json'
-                    }
+                    body: formData
                 });
                 
                 const data = await response.json();
                 
-                if (!response.ok) {
-                    throw new Error(data.error || 'Ошибка при проверке файлов');
-                }
-                
                 if (data.success) {
-                    showStatus(checkStatus, `
-                        <p>✅ Файлы проверены успешно!</p>
-                        <p>Найдено фотографий: ${data.photo_count}</p>
-                        <p>${data.message}</p>
-                    `, 'success');
+                    currentSessionId = data.session_id;
+                    fileAnalysis = data.file_analysis;
+                    totalRows = data.total_rows;
                     
-                    addLog('Файлы проверены успешно', 'success');
-                    startBtn.disabled = false;
+                    displayFileAnalysis(fileAnalysis);
+                    fileAnalysisDiv.classList.remove('hidden');
+                    btnStartUpload.disabled = false;
+                    
+                    addLog(`Анализ завершен. Найдено ${totalRows} записей для обработки`, 'success');
+                    addLog(`Требуется файлов: ${fileAnalysis.required_files.length}`, 'info');
+                    
+                    if (fileAnalysis.missing_files.length > 0) {
+                        addLog(`Внимание: отсутствуют файлы: ${fileAnalysis.missing_files.join(', ')}`, 'warning');
+                    }
+                    
+                    if (fileAnalysis.extra_files.length > 0) {
+                        addLog(`Лишние файлы в папке: ${fileAnalysis.extra_files.length}`, 'info');
+                    }
+                    
                 } else {
-                    showStatus(checkStatus, `Ошибка: ${data.errors?.join(', ') || data.error}`, 'error');
-                    addLog(`Ошибка проверки: ${data.errors?.join(', ') || data.error}`, 'error');
-                    checkBtn.disabled = false;
+                    addLog(`Ошибка: ${data.error}`, 'error');
                 }
                 
             } catch (error) {
-                showStatus(checkStatus, `Ошибка: ${error.message}`, 'error');
-                addLog(`Ошибка при проверке: ${error.message}`, 'error');
-                checkBtn.disabled = false;
+                addLog(`Ошибка сети: ${error.message}`, 'error');
+            } finally {
+                initSpinner.classList.add('hidden');
             }
         }
         
-        async function startUpload() {
+        // Отображение анализа файлов
+        function displayFileAnalysis(analysis) {
+            let html = `
+                <div class="analysis-item">
+                    <div class="analysis-icon ${analysis.all_required_present ? 'icon-success' : 'icon-warning'}">
+                        ${analysis.all_required_present ? '✓' : '⚠'}
+                    </div>
+                    <div class="analysis-text">
+                        <div class="analysis-title">
+                            ${analysis.all_required_present ? 'Все необходимые файлы найдены' : 'Некоторые файлы отсутствуют'}
+                            <span class="file-count">${analysis.required_files.length} требуется</span>
+                        </div>
+                        <div class="analysis-details">
+                            ${analysis.all_required_present ? 
+                                'Можно начинать загрузку' : 
+                                'Загрузка продолжится, но некоторые фото будут пропущены'}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analysis-item">
+                    <div class="analysis-icon icon-info">📊</div>
+                    <div class="analysis-text">
+                        <div class="analysis-title">Статистика файлов</div>
+                        <div class="analysis-details">
+                            Загружено: ${analysis.uploaded_files.length} файлов, 
+                            требуется: ${analysis.required_files.length} файлов
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            if (analysis.missing_files.length > 0) {
+                html += `
+                    <div class="analysis-item">
+                        <div class="analysis-icon icon-error">❌</div>
+                        <div class="analysis-text">
+                            <div class="analysis-title">Отсутствуют файлы <span class="file-count">${analysis.missing_files.length}</span></div>
+                            <div class="analysis-details">
+                                ${analysis.missing_files.slice(0, 5).join(', ')}
+                                ${analysis.missing_files.length > 5 ? `... и еще ${analysis.missing_files.length - 5} файлов` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (analysis.extra_files.length > 0) {
+                html += `
+                    <div class="analysis-item">
+                        <div class="analysis-icon icon-warning">📁</div>
+                        <div class="analysis-text">
+                            <div class="analysis-title">Лишние файлы в папке <span class="file-count">${analysis.extra_files.length}</span></div>
+                            <div class="analysis-details">
+                                ${analysis.extra_files.slice(0, 5).join(', ')}
+                                ${analysis.extra_files.length > 5 ? `... и еще ${analysis.extra_files.length - 5} файлов` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            fileAnalysisResults.innerHTML = html;
+        }
+        
+        // Тест подключения к VK
+        async function testVKConnection() {
             if (selectedFiles.length === 0) {
-                showStatus(uploadStatus, 'Пожалуйста, выберите папку с файлами', 'error');
+                addLog('Сначала выберите папку с файлами', 'warning');
                 return;
             }
             
-            startBtn.disabled = true;
-            cancelBtn.disabled = false;
-            uploadInProgress = true;
-            clearStatus(uploadStatus);
-            clearStatus(processStatus);
-            
-            addLog('Начинаем загрузку в VK...', 'info');
+            testSpinner.classList.remove('hidden');
+            btnTestVK.disabled = true;
             
             try {
-                // 1. Инициализация загрузки
-                addLog('Инициализация загрузки...', 'info');
-                showStatus(uploadStatus, '<div class="spinner"></div><p>Инициализация...</p>', 'info');
-                
-                const initFormData = new FormData();
+                const formData = new FormData();
                 selectedFiles.forEach(file => {
-                    initFormData.append('files', file);
+                    formData.append('files', file);
                 });
                 
-                const initResponse = await fetch('/api/start-upload', {
+                const response = await fetch('/api/test-vk', {
                     method: 'POST',
-                    body: initFormData
+                    body: formData
                 });
                 
-                const initData = await initResponse.json();
+                const data = await response.json();
                 
-                if (!initData.success) {
-                    throw new Error(initData.error || 'Ошибка инициализации');
-                }
-                
-                currentSessionId = initData.session_id;
-                totalRows = initData.total_rows;
-                currentRow = 0;
-                
-                showStatus(uploadStatus, `
-                    <p>✅ Загрузка инициализирована!</p>
-                    <p>Найдено записей: ${totalRows}</p>
-                    <p>Найдено файлов: ${initData.total_files}</p>
-                    <p>${initData.message}</p>
-                `, 'success');
-                
-                addLog(`Найдено ${totalRows} записей для обработки`, 'success');
-                updateProgress();
-                
-                // 2. Обработка каждой строки
-                for (let i = 0; i < totalRows; i++) {
-                    if (!uploadInProgress) break;
-                    
-                    currentRow = i;
-                    updateProgress();
-                    
-                    addLog(`Обработка записи ${i + 1} из ${totalRows}...`, 'info');
-                    showStatus(processStatus, `
-                        <div class="spinner"></div>
-                        <p>Обработка записи ${i + 1} из ${totalRows}...</p>
-                    `, 'info');
-                    
-                    try {
-                        // Загружаем фото для этой строки
-                        const uploadFormData = new FormData();
-                        uploadFormData.append('row_index', i);
-                        uploadFormData.append('session_id', currentSessionId);
-                        
-                        // Добавляем все файлы
-                        selectedFiles.forEach(file => {
-                            uploadFormData.append('files', file);
-                        });
-                        
-                        const uploadResponse = await fetch('/api/upload-row', {
-                            method: 'POST',
-                            body: uploadFormData
-                        });
-                        
-                        const uploadResult = await uploadResponse.json();
-                        
-                        if (!uploadResult.success) {
-                            addLog(`Ошибка при загрузке строки ${i + 1}: ${uploadResult.error}`, 'error');
-                            continue;
-                        }
-                        
-                        if (uploadResult.main_photo) {
-                            addLog(`✓ Основное фото загружено: ${uploadResult.main_photo.name}`, 'success');
-                        }
-                        
-                        if (uploadResult.comment_groups && uploadResult.comment_groups.length > 0) {
-                            let totalCommentPhotos = 0;
-                            uploadResult.comment_groups.forEach(group => {
-                                totalCommentPhotos += group.photos.length;
-                            });
-                            addLog(`✓ Фото для комментариев загружены: ${totalCommentPhotos} фото`, 'success');
-                        }
-                        
-                        // 3. Создаем комментарии
-                        if (uploadResult.comment_groups && uploadResult.comment_groups.length > 0) {
-                            addLog(`Создание комментариев...`, 'info');
-                            
-                            const commentFormData = new FormData();
-                            commentFormData.append('row_index', i);
-                            commentFormData.append('session_id', currentSessionId);
-                            commentFormData.append('comment_groups', JSON.stringify(uploadResult.comment_groups));
-                            
-                            const commentResponse = await fetch('/api/create-comments', {
-                                method: 'POST',
-                                body: commentFormData
-                            });
-                            
-                            const commentResult = await commentResponse.json();
-                            
-                            if (!commentResult.success) {
-                                addLog(`Ошибка при создании комментариев: ${commentResult.error}`, 'error');
-                            } else {
-                                addLog(`✓ Создано ${commentResult.comments_created} комментариев`, 'success');
-                            }
-                        }
-                        
-                        // Небольшая пауза между строками
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        
-                    } catch (rowError) {
-                        addLog(`Ошибка при обработке строки ${i + 1}: ${rowError.message}`, 'error');
-                        continue;
+                if (data.success) {
+                    addLog('✅ Подключение к VK успешно установлено', 'success');
+                    if (data.user_info) {
+                        addLog(`Пользователь: ${data.user_info.first_name} ${data.user_info.last_name}`, 'info');
                     }
-                }
-                
-                if (uploadInProgress) {
-                    addLog('✅ Загрузка завершена успешно!', 'success');
-                    showStatus(processStatus, `
-                        <p>✅ Загрузка завершена успешно!</p>
-                        <p>Все фотографии загружены в альбом VK</p>
-                    `, 'success');
                 } else {
-                    addLog('Загрузка отменена', 'warning');
+                    addLog(`❌ Ошибка VK: ${data.error}`, 'error');
                 }
                 
             } catch (error) {
-                addLog(`Критическая ошибка: ${error.message}`, 'error');
-                showStatus(processStatus, `
-                    <p>❌ Ошибка загрузки</p>
-                    <p>${error.message}</p>
-                `, 'error');
+                addLog(`❌ Ошибка сети: ${error.message}`, 'error');
             } finally {
+                testSpinner.classList.add('hidden');
+                btnTestVK.disabled = false;
+            }
+        }
+        
+        // Начало загрузки
+        async function startUpload() {
+            if (!currentSessionId) {
+                addLog('Ошибка: сессия не инициализирована', 'error');
+                return;
+            }
+            
+            // Переход ко второму шагу
+            step1.classList.add('hidden');
+            step2.classList.remove('hidden');
+            uploadInProgress = true;
+            uploadPaused = false;
+            
+            addLog('🚀 Начало загрузки в VK...', 'success');
+            updateProgress(0);
+            
+            // Обработка строк по очереди
+            for (let i = 0; i < totalRows; i++) {
+                if (!uploadInProgress || uploadPaused) {
+                    break;
+                }
+                
+                currentRow = i;
+                
+                try {
+                    addLog(`Обработка строки ${i + 1} из ${totalRows}...`, 'info');
+                    
+                    // Обновляем информацию о текущей строке
+                    currentRowInfo.innerHTML = `
+                        <div class="analysis-icon icon-info">⏳</div>
+                        <div class="analysis-text">
+                            <div class="analysis-title">Обработка строки ${i + 1} из ${totalRows}</div>
+                            <div class="analysis-details">Загрузка фото и создание комментариев...</div>
+                        </div>
+                    `;
+                    
+                    // Отправляем запрос на обработку строки
+                    const formData = new FormData();
+                    selectedFiles.forEach(file => {
+                        formData.append('files', file);
+                    });
+                    
+                    const response = await fetch(`/api/process-row/${i}`, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Session-ID': currentSessionId
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const result = data.result;
+                        
+                        if (result.success) {
+                            addLog(`✅ Строка ${i + 1}: ${result.main_photo} - успешно`, 'success');
+                            
+                            if (result.comment_results && result.comment_results.length > 0) {
+                                const totalComments = result.comment_results.length;
+                                const totalPhotos = result.comment_results.reduce((sum, group) => sum + (group.photos?.length || 0), 0);
+                                addLog(`   Создано ${totalComments} комментариев с ${totalPhotos} фото`, 'info');
+                            }
+                        } else {
+                            addLog(`❌ Строка ${i + 1}: ${result.main_photo} - ошибка`, 'error');
+                            if (result.errors && result.errors.length > 0) {
+                                result.errors.forEach(error => {
+                                    addLog(`   ${error}`, 'error');
+                                });
+                            }
+                        }
+                        
+                        // Обновляем прогресс
+                        updateProgress(data.progress.percentage);
+                        
+                        // Небольшая пауза между строками
+                        await sleep(1000);
+                        
+                    } else {
+                        addLog(`❌ Ошибка обработки строки ${i + 1}: ${data.error}`, 'error');
+                    }
+                    
+                } catch (error) {
+                    addLog(`❌ Сетевая ошибка при обработке строки ${i + 1}: ${error.message}`, 'error');
+                }
+            }
+            
+            // Загрузка завершена
+            if (uploadInProgress) {
+                await finalizeUpload();
+            } else {
+                addLog('Загрузка прервана пользователем', 'warning');
+                uploadStatusBadge.textContent = 'Прервано';
+                uploadStatusBadge.className = 'status-badge status-error';
+            }
+        }
+        
+        // Завершение загрузки
+        async function finalizeUpload() {
+            addLog('📊 Формирование отчета...', 'info');
+            
+            try {
+                const response = await fetch(`/api/finalize/${currentSessionId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const report = data.report;
+                    
+                    // Переход к третьему шагу
+                    step2.classList.add('hidden');
+                    step3.classList.remove('hidden');
+                    
+                    // Отображение результатов
+                    displayResults(report);
+                    
+                    addLog('✅ Загрузка завершена!', 'success');
+                    addLog(`Обработано строк: ${report.statistics.processed_rows}, успешно: ${report.statistics.successful_rows}`, 'info');
+                    
+                    if (report.file_analysis.missing_files.length > 0) {
+                        addLog(`Отсутствовали файлы: ${report.file_analysis.missing_files.join(', ')}`, 'warning');
+                    }
+                    
+                    if (report.file_analysis.extra_files.length > 0) {
+                        addLog(`Лишние файлы в папке: ${report.file_analysis.extra_files.length}`, 'info');
+                    }
+                    
+                } else {
+                    addLog(`Ошибка формирования отчета: ${data.error}`, 'error');
+                }
+                
+            } catch (error) {
+                addLog(`Ошибка при завершении: ${error.message}`, 'error');
+            }
+        }
+        
+        // Отображение результатов
+        function displayResults(report) {
+            let html = `
+                <div class="analysis-item">
+                    <div class="analysis-icon icon-success">🎉</div>
+                    <div class="analysis-text">
+                        <div class="analysis-title">Загрузка завершена!</div>
+                        <div class="analysis-details">
+                            Время выполнения: ${Math.round(report.processing_time)} секунд
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analysis-item">
+                    <div class="analysis-icon icon-info">📈</div>
+                    <div class="analysis-text">
+                        <div class="analysis-title">Статистика</div>
+                        <div class="analysis-details">
+                            Обработано: ${report.statistics.processed_rows} из ${report.statistics.total_rows} строк<br>
+                            Успешно: ${report.statistics.successful_rows} строк<br>
+                            Успешность: ${report.statistics.success_rate.toFixed(1)}%
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            if (report.file_analysis.missing_files.length > 0) {
+                html += `
+                    <div class="analysis-item">
+                        <div class="analysis-icon icon-error">❌</div>
+                        <div class="analysis-text">
+                            <div class="analysis-title">Отсутствовали файлы <span class="file-count">${report.file_analysis.missing_files.length}</span></div>
+                            <div class="analysis-details">
+                                ${report.file_analysis.missing_files.slice(0, 10).join(', ')}
+                                ${report.file_analysis.missing_files.length > 10 ? `... и еще ${report.file_analysis.missing_files.length - 10} файлов` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (report.file_analysis.extra_files.length > 0) {
+                html += `
+                    <div class="analysis-item">
+                        <div class="analysis-icon icon-warning">📁</div>
+                        <div class="analysis-text">
+                            <div class="analysis-title">Лишние файлы в папке <span class="file-count">${report.file_analysis.extra_files.length}</span></div>
+                            <div class="analysis-details">
+                                ${report.file_analysis.extra_files.slice(0, 10).join(', ')}
+                                ${report.file_analysis.extra_files.length > 10 ? `... и еще ${report.file_analysis.extra_files.length - 10} файлов` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            if (report.errors && report.errors.length > 0) {
+                html += `
+                    <div class="analysis-item">
+                        <div class="analysis-icon icon-error">⚠</div>
+                        <div class="analysis-text">
+                            <div class="analysis-title">Ошибки <span class="file-count">${report.errors.length}</span></div>
+                            <div class="analysis-details">
+                                ${report.errors.slice(0, 5).join('<br>')}
+                                ${report.errors.length > 5 ? `<br>... и еще ${report.errors.length - 5} ошибок` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            finalResults.innerHTML = html;
+        }
+        
+        // Управление загрузкой
+        function pauseUpload() {
+            uploadPaused = !uploadPaused;
+            const btn = document.getElementById('btnPauseUpload');
+            btn.textContent = uploadPaused ? 'Продолжить' : 'Пауза';
+            addLog(uploadPaused ? 'Загрузка приостановлена' : 'Загрузка продолжена', 'info');
+        }
+        
+        async function cancelUpload() {
+            if (!uploadInProgress) return;
+            
+            if (confirm('Прервать загрузку?')) {
                 uploadInProgress = false;
-                startBtn.disabled = false;
-                cancelBtn.disabled = true;
+                
+                try {
+                    await fetch(`/api/cancel/${currentSessionId}`, {
+                        method: 'POST'
+                    });
+                    
+                    addLog('Загрузка отменена пользователем', 'warning');
+                    step2.classList.add('hidden');
+                    step1.classList.remove('hidden');
+                    
+                } catch (error) {
+                    addLog(`Ошибка при отмене: ${error.message}`, 'error');
+                }
             }
         }
         
-        function cancelUpload() {
+        // Вспомогательные функции
+        function updateProgress(percentage) {
+            const percent = Math.min(100, Math.max(0, percentage));
+            progressFill.style.width = `${percent}%`;
+            progressPercentage.textContent = `${percent.toFixed(1)}%`;
+            
+            if (percent >= 100) {
+                uploadStatusBadge.textContent = 'Завершено';
+                uploadStatusBadge.className = 'status-badge status-completed';
+            } else if (uploadPaused) {
+                uploadStatusBadge.textContent = 'На паузе';
+                uploadStatusBadge.className = 'status-badge status-warning';
+            } else {
+                uploadStatusBadge.textContent = 'В процессе';
+                uploadStatusBadge.className = 'status-badge status-processing';
+            }
+        }
+        
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+        
+        function downloadReport() {
+            addLog('Скачивание отчета...', 'info');
+            // В реальном приложении здесь можно сгенерировать и скачать отчет
+            alert('В реальном приложении здесь будет скачивание отчета');
+        }
+        
+        function startNewUpload() {
+            // Сброс состояния
+            selectedFiles = [];
+            currentSessionId = null;
             uploadInProgress = false;
-            cancelBtn.disabled = true;
-            addLog('Загрузка отменена пользователем', 'warning');
-            showStatus(processStatus, 'Загрузка отменена', 'warning');
-        }
-        
-        function updateProgress() {
-            if (totalRows > 0) {
-                const progress = ((currentRow + 1) / totalRows * 100).toFixed(1);
-                progressFill.style.width = `${progress}%`;
-                progressText.textContent = `${progress}% (${currentRow + 1}/${totalRows})`;
-            }
+            uploadPaused = false;
+            currentRow = 0;
+            totalRows = 0;
+            fileAnalysis = null;
+            
+            // Сброс интерфейса
+            step3.classList.add('hidden');
+            step1.classList.remove('hidden');
+            fileAnalysisDiv.classList.add('hidden');
+            progressFill.style.width = '0%';
+            progressPercentage.textContent = '0%';
+            folderInput.value = '';
+            
+            addLog('Готов к новой загрузке. Выберите папку с файлами.', 'info');
         }
         
         // Инициализация
-        addLog('Готов к работе. Выберите папку с файлами.', 'info');
+        addLog('Приложение готово к работе', 'info');
     </script>
 </body>
 </html>

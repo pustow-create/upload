@@ -97,7 +97,6 @@ def parse_csv_content(csv_content):
         if not line.strip():
             continue
         
-        # Разбиваем по разделителю
         parts = [p.strip().strip('"') for p in line.split(delimiter)]
         
         if len(parts) >= 2:
@@ -119,7 +118,7 @@ def parse_csv_content(csv_content):
 
 # ==================== АНАЛИЗ ФАЙЛОВ ====================
 def analyze_files(csv_data, uploaded_files_dict):
-    """Анализ наличия файлов - сравниваем имена без учета регистра"""
+    """Анализ наличия файлов"""
     
     required_files = set()
     for row in csv_data:
@@ -134,7 +133,6 @@ def analyze_files(csv_data, uploaded_files_dict):
     missing_files = list(required_files - uploaded_lower)
     missing_files_original = []
     
-    # Находим оригинальные имена отсутствующих файлов
     for row in csv_data:
         if row['main_photo'].lower() in missing_files:
             missing_files_original.append(row['main_photo'])
@@ -243,136 +241,123 @@ def health():
 @app.route('/api/init', methods=['POST'])
 def init_upload():
     try:
-        uploaded_files = {}  # Ключ - имя в нижнем регистре, значение - base64 данные
-        uploaded_files_original = []  # Список оригинальных имен
+        uploaded_files = {}
         config_content = None
         csv_content = None
         
         files_list = request.files.getlist('files')
         print(f"\n{'='*60}")
-        print(f"ЗАГРУЖЕНО ФАЙЛОВ: {len(files_list)}")
+        print(f"ИНИЦИАЛИЗАЦИЯ: ПОЛУЧЕНО {len(files_list)} ФАЙЛОВ")
         print(f"{'='*60}")
+        
+        # СОЗДАЕМ ВРЕМЕННУЮ ДИРЕКТОРИЮ ДЛЯ ФАЙЛОВ
+        temp_dir = tempfile.mkdtemp()
+        print(f"Временная директория: {temp_dir}")
         
         for file in files_list:
             original_name = file.filename
-            print(f"  Файл: '{original_name}'")
-            
-            # Ищем config.txt
             name_lower = original_name.lower()
+            print(f"\n  Файл: '{original_name}'")
+            
+            # config.txt
             if name_lower == 'config.txt' or (name_lower.endswith('.txt') and 'config' in name_lower):
                 config_content = file.read()
-                print(f"  ✅ CONFIG: {original_name}")
+                print(f"  ✅ CONFIG.TXT найден, размер: {len(config_content)} байт")
                 continue
             
-            # Ищем CSV
+            # CSV
             if name_lower.endswith('.csv'):
                 csv_content = file.read()
-                print(f"  ✅ CSV: {original_name}")
+                print(f"  ✅ CSV найден, размер: {len(csv_content)} байт")
                 continue
             
-            # Это фото - читаем и кодируем в base64
+            # ФОТО - СОХРАНЯЕМ ВРЕМЕННО НА ДИСК
             file.seek(0)
             file_data = file.read()
             
-            # Кодируем в base64 для сохранения в сессии
+            # Сохраняем во временный файл
+            temp_file_path = os.path.join(temp_dir, original_name)
+            with open(temp_file_path, 'wb') as f:
+                f.write(file_data)
+            print(f"  💾 Сохранен временный файл: {temp_file_path}")
+            
+            # Также кодируем в base64 для сессии
             file_base64 = base64.b64encode(file_data).decode('utf-8')
             
-            # Сохраняем по имени в нижнем регистре
-            uploaded_files[name_lower] = {
+            # Сохраняем в словарь по имени в нижнем регистре
+            key = name_lower
+            uploaded_files[key] = {
                 'name': original_name,
                 'data_base64': file_base64,
+                'temp_path': temp_file_path,
                 'size': len(file_data)
             }
-            
-            uploaded_files_original.append(original_name)
-            print(f"  📸 ФОТО: {original_name} -> сохранено как '{name_lower}' ({len(file_data)} байт)")
+            print(f"  📸 ФОТО СОХРАНЕНО: {original_name} -> ключ '{key}'")
         
         # Проверяем config.txt
         if not config_content:
             print("\n❌ CONFIG.TXT НЕ НАЙДЕН!")
-            return jsonify({
-                'success': False, 
-                'error': 'Не найден файл config.txt'
-            }), 400
+            return jsonify({'success': False, 'error': 'Не найден файл config.txt'}), 400
         
         # Проверяем CSV
         if not csv_content:
             print("\n❌ CSV ФАЙЛ НЕ НАЙДЕН!")
-            return jsonify({
-                'success': False, 
-                'error': 'Не найден CSV файл'
-            }), 400
+            return jsonify({'success': False, 'error': 'Не найден CSV файл'}), 400
         
         # Загружаем конфиг
         config = load_config_from_file(config_content)
+        print(f"\nКонфиг загружен: {list(config.keys())}")
         
         # Проверяем обязательные ключи
         if 'ACCESS_TOKEN' not in config:
-            return jsonify({
-                'success': False, 
-                'error': 'В config.txt отсутствует ACCESS_TOKEN'
-            }), 400
-        
+            return jsonify({'success': False, 'error': 'В config.txt отсутствует ACCESS_TOKEN'}), 400
         if 'ALBUM_ID' not in config:
-            return jsonify({
-                'success': False, 
-                'error': 'В config.txt отсутствует ALBUM_ID'
-            }), 400
+            return jsonify({'success': False, 'error': 'В config.txt отсутствует ALBUM_ID'}), 400
         
         # Парсим CSV
         csv_data = parse_csv_content(csv_content)
-        
-        if not csv_data:
-            return jsonify({
-                'success': False, 
-                'error': 'CSV файл пуст'
-            }), 400
-        
-        print(f"\n{'='*60}")
-        print(f"ДАННЫЕ ИЗ CSV ({len(csv_data)} записей)")
-        print(f"{'='*60}")
-        for i, row in enumerate(csv_data):
-            print(f"  Строка {i+1}:")
-            print(f"    Основное: {row['main_photo']}")
-            print(f"    Комментарии: {row['comment_photos']}")
+        print(f"\nCSV: найдено {len(csv_data)} записей")
         
         # Анализируем файлы
         analysis = analyze_files(csv_data, uploaded_files)
-        
-        print(f"\n{'='*60}")
-        print(f"АНАЛИЗ ФАЙЛОВ")
-        print(f"{'='*60}")
+        print(f"\nАНАЛИЗ:")
         print(f"  Требуется файлов: {analysis['required_count']}")
         print(f"  Загружено файлов: {analysis['uploaded_count']}")
-        print(f"  Найдено: {analysis['uploaded_count'] - analysis['missing_count']}")
+        print(f"  Найдено совпадений: {analysis['uploaded_count'] - analysis['missing_count']}")
         print(f"  Отсутствуют: {analysis['missing_count']}")
-        print(f"  Лишние: {analysis['extra_count']}")
         
         if analysis['missing_files']:
-            print(f"\n  ОТСУТСТВУЮТ ФАЙЛЫ:")
+            print(f"\n  ОТСУТСТВУЮТ:")
             for f in analysis['missing_files'][:10]:
                 print(f"    - {f}")
+        
+        print(f"\n  ЗАГРУЖЕННЫЕ ФАЙЛЫ (ключи в сессии):")
+        for key in sorted(uploaded_files.keys())[:20]:
+            print(f"    - {key}")
         
         # СОЗДАЕМ СЕССИЮ
         session_id = str(int(time.time() * 1000))
         
-        # КРИТИЧЕСКИ ВАЖНО: сохраняем файлы в сессии
+        # ВАЖНО: сохраняем uploaded_files в сессию!
         session_data = {
             'config': config,
             'csv_data': csv_data,
-            'uploaded_files': uploaded_files,  # Здесь хранятся base64 данные
+            'uploaded_files': uploaded_files,  # ЗДЕСЬ ФАЙЛЫ В BASE64
+            'temp_dir': temp_dir,
             'analysis': analysis,
             'current_row': 0,
             'results': [],
             'start_time': time.time(),
-            'uploaded_count': len(uploaded_files),
-            'uploaded_names': list(uploaded_files.keys())
+            'file_count': len(uploaded_files)
         }
         
         set_session(session_id, session_data)
+        
+        # ПРОВЕРЯЕМ, ЧТО СЕССИЯ СОХРАНИЛАСЬ
+        check_session = get_session(session_id)
         print(f"\n✅ СЕССИЯ СОЗДАНА: {session_id}")
-        print(f"  Файлов в сессии: {len(uploaded_files)}")
-        print(f"  Имена: {list(uploaded_files.keys())[:5]}...")
+        print(f"  Файлов в сессии: {len(check_session.get('uploaded_files', {}))}")
+        print(f"  Ключи в сессии: {list(check_session.get('uploaded_files', {}).keys())[:10]}")
         print(f"{'='*60}\n")
         
         return jsonify({
@@ -402,24 +387,33 @@ def process_row(row_index):
         return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
     
     try:
-        csv_data = session_data['csv_data']
-        if row_index >= len(csv_data):
-            return jsonify({'success': False, 'error': 'Неверный индекс'}), 400
-        
-        row = csv_data[row_index]
-        config = session_data['config']
-        uploaded_files = session_data['uploaded_files']  # Ключи в нижнем регистре с base64
+        # ПОЛУЧАЕМ ДАННЫЕ ИЗ СЕССИИ
+        csv_data = session_data.get('csv_data', [])
+        config = session_data.get('config', {})
+        uploaded_files = session_data.get('uploaded_files', {})
         
         print(f"\n{'='*60}")
         print(f"ОБРАБОТКА СТРОКИ {row_index + 1}")
         print(f"{'='*60}")
-        print(f"  Основное фото: '{row['main_photo']}'")
-        print(f"  Поиск: '{row['main_photo'].lower()}'")
-        print(f"  Фото в комментариях: {row['comment_photos']}")
+        print(f"Сессия ID: {session_id}")
+        print(f"Файлов в сессии: {len(uploaded_files)}")
+        print(f"Ключи в сессии: {list(uploaded_files.keys())[:20]}")
+        
+        if row_index >= len(csv_data):
+            return jsonify({'success': False, 'error': 'Неверный индекс'}), 400
+        
+        row = csv_data[row_index]
+        main_photo = row['main_photo']
+        main_photo_lower = main_photo.lower()
+        
+        print(f"\n  Строка {row_index + 1}:")
+        print(f"    Основное фото: {main_photo}")
+        print(f"    Ищем ключ: '{main_photo_lower}'")
+        print(f"    Фото в комментариях: {row['comment_photos']}")
         
         result = {
             'row_index': row_index,
-            'main_photo': row['main_photo'],
+            'main_photo': main_photo,
             'description': row['description'],
             'success': False,
             'main_photo_result': None,
@@ -428,24 +422,24 @@ def process_row(row_index):
         }
         
         # 1. ЗАГРУЗКА ОСНОВНОГО ФОТО
-        main_photo_lower = row['main_photo'].lower()
-        
-        print(f"\n  Поиск файла '{main_photo_lower}'...")
-        print(f"  Доступные файлы в сессии: {list(uploaded_files.keys())[:5]}...")
+        print(f"\n  Поиск '{main_photo_lower}' в сессии...")
         
         if main_photo_lower in uploaded_files:
             file_info = uploaded_files[main_photo_lower]
             actual_name = file_info['name']
             file_base64 = file_info['data_base64']
-            print(f"  ✅ Файл НАЙДЕН: {actual_name}")
+            print(f"  ✅ ФАЙЛ НАЙДЕН!")
+            print(f"    Оригинальное имя: {actual_name}")
+            print(f"    Размер base64: {len(file_base64)}")
             
             try:
-                # Декодируем base64 в байты
+                # Декодируем base64
                 file_data = base64.b64decode(file_base64)
+                print(f"    Декодировано: {len(file_data)} байт")
                 
                 # Инициализируем VK загрузчик
                 uploader = VKUploader(
-                    config['ACCESS_TOKEN'],
+                    config.get('ACCESS_TOKEN'),
                     config.get('GROUP_ID')
                 )
                 
@@ -453,11 +447,10 @@ def process_row(row_index):
                 upload_server = uploader.get_album_upload_server(config['ALBUM_ID'])
                 print(f"  Получен upload server")
                 
-                # Создаем BytesIO из данных
+                # Загружаем на сервер VK
                 upload_file = io.BytesIO(file_data)
                 upload_file.seek(0)
                 
-                # Загружаем на сервер VK
                 files = {'file1': (actual_name, upload_file, 'image/jpeg')}
                 upload_response = requests.post(
                     upload_server['upload_url'],
@@ -466,7 +459,7 @@ def process_row(row_index):
                 )
                 upload_response.raise_for_status()
                 upload_result = upload_response.json()
-                print(f"  Фото загружено на сервер VK")
+                print(f"  ✅ Фото загружено на сервер VK")
                 
                 # Сохраняем в альбоме
                 save_result = uploader.save_album_photo(
@@ -484,7 +477,7 @@ def process_row(row_index):
                         'vk_url': f"photo{photo_info['owner_id']}_{photo_info['id']}"
                     }
                     result['success'] = True
-                    print(f"  ✅ Основное фото ЗАГРУЖЕНО!")
+                    print(f"  ✅ Основное фото СОХРАНЕНО!")
                     
                     # 2. ЗАГРУЗКА ФОТО ДЛЯ КОММЕНТАРИЕВ
                     comment_photos = row['comment_photos']
@@ -512,7 +505,7 @@ def process_row(row_index):
                                     print(f"      ✅ Найден: {photo_actual_name}")
                                     
                                     try:
-                                        # Декодируем фото
+                                        # Декодируем
                                         photo_data = base64.b64decode(photo_base64)
                                         
                                         wall_server = uploader.get_wall_upload_server()
@@ -590,21 +583,20 @@ def process_row(row_index):
                 print(f"  ❌ {error_msg}")
                 result['errors'].append(error_msg)
         else:
-            error_msg = f"Файл {row['main_photo']} не найден (искали '{main_photo_lower}')"
+            error_msg = f"Файл {main_photo} не найден (искали '{main_photo_lower}')"
             print(f"  ❌ {error_msg}")
+            print(f"  Доступные ключи: {list(uploaded_files.keys())[:20]}")
             result['errors'].append(error_msg)
-            
-            # Показываем доступные файлы для отладки
-            print(f"\n  Доступные файлы в сессии (первые 20):")
-            for i, name in enumerate(sorted(list(uploaded_files.keys()))[:20]):
-                print(f"    {i+1}. {name}")
         
-        # Сохраняем результат
+        # Сохраняем результат в сессии
         if 'results' not in session_data:
             session_data['results'] = []
         session_data['results'].append(result)
         session_data['current_row'] = row_index + 1
         set_session(session_id, session_data)
+        
+        print(f"\n  Результат: {'✅ УСПЕХ' if result['success'] else '❌ ОШИБКА'}")
+        print(f"{'='*60}\n")
         
         return jsonify({
             'success': True,
@@ -683,6 +675,12 @@ def finalize(session_id):
             'errors': [e for r in results for e in r.get('errors', [])][:50]
         }
         
+        # Очищаем временную директорию
+        temp_dir = session_data.get('temp_dir')
+        if temp_dir and os.path.exists(temp_dir):
+            import shutil
+            shutil.rmtree(temp_dir)
+        
         return jsonify({'success': True, 'report': report})
         
     except Exception as e:
@@ -716,4 +714,4 @@ if __name__ == '__main__':
     os.makedirs('static', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=True)  # debug=True для логов

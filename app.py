@@ -15,7 +15,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'proxy-secret-key')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB максимум
 app.config['JSON_AS_ASCII'] = False  # Для кириллицы!
 
-VK_API_VERSION = "5.131"  # ИЗМЕНЕНО на 5.131 как в рабочем коде!
+VK_API_VERSION = "5.131"  # ВАЖНО: используем 5.131 как в рабочем коде!
 sessions = {}
 session_lock = threading.Lock()
 
@@ -50,6 +50,7 @@ def parse_config(content):
     return config
 
 def parse_csv(content):
+    """Парсинг CSV с поддержкой UTF-8 и кириллицы"""
     if isinstance(content, bytes):
         content = content.decode('utf-8-sig', errors='ignore')
     
@@ -84,7 +85,7 @@ def parse_csv(content):
                     'description': description,
                     'comment_photos': comment_photos
                 })
-                print(f"CSV строка {i+1}: {main_photo} - {description[:30]}...")
+                print(f"CSV строка {i+1}: {main_photo} - {description[:50]}...")
     
     return csv_data
 
@@ -99,15 +100,18 @@ def proxy_upload_to_album(upload_url, file_data, filename):
 def proxy_upload_to_wall(upload_url, file_data, filename):
     """Прокси-загрузка фото на стену VK"""
     files = {'photo': (filename, file_data, 'image/jpeg')}
-    response = requests.post(upload_url, files=files, timeout=60)
+    response =requests.post(upload_url, files=files, timeout=60)
     response.raise_for_status()
     return response.json()
 
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
-    """Сохранить фото в альбоме с описанием - РАБОЧАЯ ВЕРСИЯ"""
+    """Сохранить фото в альбоме с описанием - ТОЧНАЯ КОПИЯ РАБОЧЕГО КОДА"""
     
-    print(f"  🔍 RAW description: {repr(description)}")  # ДИАГНОСТИКА!
-    print(f"  🔍 Description type: {type(description)}")  # ДИАГНОСТИКА!
+    # ДИАГНОСТИКА
+    print(f"  🔍 ФУНКЦИЯ: proxy_save_album_photo")
+    print(f"  🔍 Получено описание: {repr(description)}")
+    print(f"  🔍 Тип описания: {type(description)}")
+    print(f"  🔍 Длина описания: {len(description) if description else 0}")
     
     # Параметры как в рабочем тестовом коде
     save_params = {
@@ -122,17 +126,15 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     if group_id:
         save_params['group_id'] = abs(int(group_id))
     
-    # Добавляем описание
+    # Добавляем описание - ПРОСТО СТРОКА, БЕЗ encode!
     if description and description.strip():
-        # Пробуем разные варианты
         save_params['caption'] = description.strip()
-        print(f"  📝 Описание для отправки: {description.strip()}")
-        print(f"  🔍 Caption param: {repr(save_params['caption'])}")
+        print(f"  ✅ Описание ДОБАВЛЕНО в params: {description.strip()[:50]}...")
+        print(f"  🔍 Caption repr: {repr(save_params['caption'])}")
     
-    # GET запрос с params
+    # GET запрос с params - КАК В ТЕСТОВОМ КОДЕ!
     url = 'https://api.vk.com/method/photos.save'
-    print(f"  🔗 URL: {url}")
-    print(f"  📦 Params: { {k: v if k != 'access_token' else '***' for k, v in save_params.items()} }")
+    print(f"  🔗 Отправка GET запроса на {url}")
     
     save_response = requests.get(url, params=save_params, timeout=30)
     
@@ -146,13 +148,7 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
         print(f"❌ VK Error: {error_msg}")
         raise Exception(f"VK Error: {error_msg}")
     
-    return save_data['response']
-    
-    if 'error' in save_data:
-        error_msg = save_data['error'].get('error_msg', 'Unknown error')
-        print(f"❌ VK Error: {error_msg}")
-        raise Exception(f"VK Error: {error_msg}")
-    
+    print(f"  ✅ Фото успешно сохранено, ID: {save_data['response'][0]['id']}")
     return save_data['response']
 
 def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None):
@@ -207,7 +203,7 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
     return result['response']
 
 def proxy_get_upload_server(access_token, album_id, group_id=None):
-    """Получить URL для загрузки в альбом"""
+    """Получить URL для загрузки в альбом - GET запрос как в рабочем коде"""
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -362,6 +358,17 @@ def get_upload_urls(session_id, row_index):
         row = csv_data[row_index]
         config = session_data.get('config', {})
         
+        # ========== ДИАГНОСТИКА ==========
+        print(f"\n🔍 ПОЛУЧЕНИЕ URL ДЛЯ СТРОКИ {row_index}:")
+        print(f"  main_photo: {row['main_photo']}")
+        print(f"  description: {repr(row['description'])}")
+        print(f"  description type: {type(row['description'])}")
+        print(f"  description len: {len(row['description'])}")
+        if row['description']:
+            print(f"  hex: {row['description'].encode('utf-8').hex()}")
+        print(f"  comment_photos: {row['comment_photos']}")
+        # ================================
+        
         album_url = proxy_get_upload_server(
             config['ACCESS_TOKEN'], 
             config['ALBUM_ID'], 
@@ -396,6 +403,7 @@ def get_upload_urls(session_id, row_index):
         })
         
     except Exception as e:
+        print(f"❌ Ошибка в get_upload_urls: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ==================== ПРОКСИ-ЗАГРУЗКА В АЛЬБОМ ====================
@@ -408,7 +416,15 @@ def proxy_upload_album():
         upload_url = request.form.get('upload_url')
         description = request.form.get('description', '')
         
-        print(f"  🔍 Получено описание из формы: {repr(description)}")  # ДИАГНОСТИКА!
+        # ========== ДИАГНОСТИКА ==========
+        print(f"\n🔍 ПРОКСИ-ЗАГРУЗКА В АЛЬБОМ:")
+        print(f"  filename: {filename}")
+        print(f"  description from form: {repr(description)}")
+        print(f"  description type: {type(description)}")
+        print(f"  description len: {len(description)}")
+        if description:
+            print(f"  hex: {description.encode('utf-8').hex()}")
+        # ================================
         
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'Нет файла'}), 400

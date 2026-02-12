@@ -20,16 +20,14 @@ app.config['JSON_AS_ASCII'] = False
 VK_API_VERSION = "5.131"
 sessions = {}
 session_lock = threading.Lock()
-# Пул потоков для параллельной загрузки
 executor = ThreadPoolExecutor(max_workers=20)
 
 # ==================== КЭШ URL ====================
 url_cache = {}
 url_cache_lock = threading.Lock()
-CACHE_TTL = 300  # 5 минут
+CACHE_TTL = 300
 
 def get_cached_url(cache_key, api_func, *args, **kwargs):
-    """Получить URL из кэша или запросить новый"""
     with url_cache_lock:
         cached = url_cache.get(cache_key)
         if cached and time.time() - cached['time'] < CACHE_TTL:
@@ -58,15 +56,17 @@ def delete_session(session_id):
     with session_lock:
         sessions.pop(session_id, None)
 
-# ==================== БЫСТРЫЙ ПАРСИНГ ====================
+# ==================== ПАРСИНГ ====================
 def parse_config(content):
-    """Сверхбыстрый парсинг конфига"""
     config = {}
     if isinstance(content, bytes):
         try:
             content = content.decode('utf-8')
         except:
-            content = content.decode('windows-1251')
+            try:
+                content = content.decode('windows-1251')
+            except:
+                content = content.decode('utf-8', errors='ignore')
     
     for line in content.split('\n'):
         line = line.strip()
@@ -76,9 +76,7 @@ def parse_config(content):
     return config
 
 def parse_csv(content):
-    """Максимально быстрый парсинг CSV"""
     if isinstance(content, bytes):
-        # Пробуем все кодировки быстро
         for enc in ['windows-1251', 'utf-8-sig', 'utf-8']:
             try:
                 content = content.decode(enc)
@@ -90,18 +88,19 @@ def parse_csv(content):
     if not lines:
         return []
     
-    # Определяем начало данных
     start_idx = 0
     delimiter = '|'
     
     if lines[0].startswith('sep='):
-        delimiter = lines[0].split('=')[1]
-        start_idx = 2 if len(lines) > 1 and 'файл' in lines[1].lower() else 1
-    elif lines and 'файл' in lines[0].lower():
+        delimiter = lines[0].split('=')[1].strip()
         start_idx = 1
     
+    if start_idx < len(lines) and 'файл' in lines[start_idx].lower():
+        start_idx += 1
+    
     csv_data = []
-    for line in lines[start_idx:]:
+    for i in range(start_idx, len(lines)):
+        line = lines[i].strip()
         if not line:
             continue
         parts = line.split(delimiter)
@@ -110,7 +109,6 @@ def parse_csv(content):
             description = parts[1].strip() if len(parts) > 1 else ''
             comment_photos = []
             if len(parts) > 2 and parts[2].strip():
-                # Максимум 4 фото для скорости
                 comment_photos = [p.strip() for p in parts[2].split(';') if p.strip()][:4]
             csv_data.append({
                 'main_photo': main_photo,
@@ -120,9 +118,8 @@ def parse_csv(content):
     
     return csv_data
 
-# ==================== VK API ФУНКЦИИ ====================
+# ==================== VK API ====================
 def get_album_upload_server(access_token, album_id, group_id=None):
-    """Получить сервер для загрузки в альбом"""
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -139,7 +136,6 @@ def get_album_upload_server(access_token, album_id, group_id=None):
     return result['response']['upload_url']
 
 def get_wall_upload_server(access_token, group_id=None):
-    """Получить сервер для загрузки на стену"""
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION
@@ -155,7 +151,6 @@ def get_wall_upload_server(access_token, group_id=None):
     return result['response']['upload_url']
 
 def upload_photo(upload_url, file_data, filename, is_wall=False):
-    """Загрузить одно фото"""
     try:
         field_name = 'file1' if not is_wall else 'photo'
         files = {field_name: (filename, file_data, 'image/jpeg')}
@@ -166,7 +161,6 @@ def upload_photo(upload_url, file_data, filename, is_wall=False):
         return {'error': str(e)}
 
 def save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
-    """Сохранить фото в альбоме"""
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -178,7 +172,7 @@ def save_album_photo(access_token, server, photos_list, hash_value, album_id, gr
     if group_id:
         params['group_id'] = abs(int(group_id))
     if description:
-        params['caption'] = description[:100]  # Ограничиваем длину
+        params['caption'] = description[:100]
     
     response = requests.get('https://api.vk.com/method/photos.save', params=params, timeout=15)
     result = response.json()
@@ -187,7 +181,6 @@ def save_album_photo(access_token, server, photos_list, hash_value, album_id, gr
     return result['response'][0]
 
 def save_wall_photo(access_token, server, photo, hash_value, group_id=None):
-    """Сохранить фото на стену"""
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -206,7 +199,6 @@ def save_wall_photo(access_token, server, photo, hash_value, group_id=None):
     return result['response'][0]
 
 def create_comment(access_token, owner_id, photo_id, attachments, group_id=None):
-    """Создать комментарий к фото"""
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -226,7 +218,7 @@ def create_comment(access_token, owner_id, photo_id, attachments, group_id=None)
         raise Exception(f"VK Error: {result['error']['error_msg']}")
     return result['response']
 
-# ==================== ОСНОВНЫЕ МАРШРУТЫ ====================
+# ==================== МАРШРУТЫ ====================
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -237,7 +229,6 @@ def health():
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze():
-    """Быстрый анализ файлов"""
     try:
         config_content = None
         csv_content = None
@@ -262,15 +253,16 @@ def analyze():
         if not csv_data:
             return jsonify({'success': False, 'error': 'CSV файл пуст или имеет неверный формат'}), 400
         
-        # Быстрый сбор уникальных файлов
         required_files = set()
         for row in csv_data:
             required_files.add(row['main_photo'])
             required_files.update(row['comment_photos'])
         
-        # Предзагружаем URL в кэш
         session_id = str(int(time.time() * 1000))
         
+        # Пытаемся получить URL, но не критично если не получится
+        album_url = None
+        wall_url = None
         try:
             album_cache_key = f"album_{config['ACCESS_TOKEN'][:10]}_{config['ALBUM_ID']}_{config.get('GROUP_ID', '')}"
             album_url = get_cached_url(album_cache_key, get_album_upload_server, 
@@ -279,10 +271,8 @@ def analyze():
             wall_cache_key = f"wall_{config['ACCESS_TOKEN'][:10]}_{config.get('GROUP_ID', '')}"
             wall_url = get_cached_url(wall_cache_key, get_wall_upload_server, 
                                     config['ACCESS_TOKEN'], config.get('GROUP_ID'))
-        except Exception as e:
-            album_url = None
-            wall_url = None
-            print(f"⚠️ Не удалось предзагрузить URL: {e}")
+        except:
+            pass
         
         session_data = {
             'config': config,
@@ -307,16 +297,23 @@ def analyze():
         })
         
     except Exception as e:
+        print(f"❌ Ошибка analyze: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/upload-batch', methods=['POST'])
 def upload_batch():
-    """Пакетная загрузка - ВСЕ ФОТО ОДНИМ ЗАПРОСОМ"""
     try:
         data = request.json
+        if not data:
+            return jsonify({'success': False, 'error': 'Нет данных'}), 400
+            
         session_id = data.get('session_id')
         row_index = data.get('row_index')
-        files_data = data.get('files', [])
+        files = data.get('files', [])
+        
+        # Проверяем что files это список
+        if not isinstance(files, list):
+            files = []
         
         session_data = get_session(session_id)
         if not session_data:
@@ -324,54 +321,71 @@ def upload_batch():
         
         config = session_data.get('config', {})
         csv_data = session_data.get('csv_data', [])
+        
+        if row_index >= len(csv_data):
+            return jsonify({'success': False, 'error': 'Неверный индекс строки'}), 400
+            
         row = csv_data[row_index]
         
-        print(f"\n🚀 Пакетная загрузка строки {row_index + 1}/{session_data['total_rows']}")
-        print(f"📸 Главное: {row['main_photo']}")
-        print(f"🖼️ Комментарии: {len(row['comment_photos'])} фото")
+        print(f"\n🚀 Строка {row_index + 1}/{session_data['total_rows']}")
+        print(f"📸 Главное фото: {row['main_photo']}")
+        print(f"🖼️ Фото для комментария: {len(row['comment_photos'])}")
+        print(f"📦 Получено файлов: {len(files)}")
         
-        # === 1. ПОЛУЧАЕМ URL ДЛЯ ЗАГРУЗКИ (из кэша или новые) ===
-        album_cache_key = f"album_{config['ACCESS_TOKEN'][:10]}_{config['ALBUM_ID']}_{config.get('GROUP_ID', '')}"
-        album_url = session_data['cached_urls'].get('album')
-        if not album_url:
-            album_url = get_cached_url(album_cache_key, get_album_upload_server, 
-                                     config['ACCESS_TOKEN'], config['ALBUM_ID'], config.get('GROUP_ID'))
+        # === ПОЛУЧАЕМ URL ===
+        try:
+            album_cache_key = f"album_{config['ACCESS_TOKEN'][:10]}_{config['ALBUM_ID']}_{config.get('GROUP_ID', '')}"
+            album_url = session_data['cached_urls'].get('album')
+            if not album_url:
+                album_url = get_cached_url(album_cache_key, get_album_upload_server, 
+                                         config['ACCESS_TOKEN'], config['ALBUM_ID'], config.get('GROUP_ID'))
+            
+            wall_cache_key = f"wall_{config['ACCESS_TOKEN'][:10]}_{config.get('GROUP_ID', '')}"
+            wall_url = session_data['cached_urls'].get('wall')
+            if not wall_url:
+                wall_url = get_cached_url(wall_cache_key, get_wall_upload_server, 
+                                        config['ACCESS_TOKEN'], config.get('GROUP_ID'))
+        except Exception as e:
+            print(f"❌ Ошибка получения URL: {e}")
+            return jsonify({'success': False, 'error': f'Ошибка получения URL: {str(e)}'}), 500
         
-        wall_cache_key = f"wall_{config['ACCESS_TOKEN'][:10]}_{config.get('GROUP_ID', '')}"
-        wall_url = session_data['cached_urls'].get('wall')
-        if not wall_url:
-            wall_url = get_cached_url(wall_cache_key, get_wall_upload_server, 
-                                    config['ACCESS_TOKEN'], config.get('GROUP_ID'))
-        
-        # === 2. ПАРАЛЛЕЛЬНАЯ ЗАГРУЗКА ВСЕХ ФОТО ===
+        # === ПОДГОТОВКА К ЗАГРУЗКЕ ===
         upload_tasks = []
-        file_map = {}
+        main_file_found = False
+        comment_files_found = []
         
-        # Подготавливаем главное фото
-        main_file_data = None
-        for f in files_data:
-            if f['filename'] == row['main_photo']:
-                main_file_data = base64.b64decode(f['data'].split(',')[1])
-                upload_tasks.append((album_url, main_file_data, f['filename'], False))
-                file_map[f['filename']] = 'main'
+        # Ищем главное фото
+        for f in files:
+            if f.get('filename') == row['main_photo'] and f.get('data'):
+                try:
+                    file_data = base64.b64decode(f['data'].split(',')[1])
+                    upload_tasks.append((album_url, file_data, f['filename'], False))
+                    main_file_found = True
+                    print(f"✅ Главное фото найдено: {f['filename']}")
+                except Exception as e:
+                    print(f"❌ Ошибка декодирования главного фото: {e}")
                 break
         
-        # Подготавливаем фото для комментариев
-        comment_photos = []
+        # Ищем фото для комментариев
         for comment_photo in row['comment_photos']:
-            for f in files_data:
-                if f['filename'] == comment_photo:
-                    file_data = base64.b64decode(f['data'].split(',')[1])
-                    upload_tasks.append((wall_url, file_data, f['filename'], True))
-                    comment_photos.append(f['filename'])
-                    file_map[f['filename']] = 'comment'
+            for f in files:
+                if f.get('filename') == comment_photo and f.get('data'):
+                    try:
+                        file_data = base64.b64decode(f['data'].split(',')[1])
+                        upload_tasks.append((wall_url, file_data, f['filename'], True))
+                        comment_files_found.append(f['filename'])
+                        print(f"✅ Фото комментария найдено: {f['filename']}")
+                    except Exception as e:
+                        print(f"❌ Ошибка декодирования фото комментария: {e}")
                     break
         
-        # Параллельная загрузка
-        print(f"⏫ Загрузка {len(upload_tasks)} фото параллельно...")
-        start_upload = time.time()
+        if not main_file_found:
+            return jsonify({'success': False, 'error': f'Не найдено главное фото: {row["main_photo"]}'}), 400
         
+        # === ПАРАЛЛЕЛЬНАЯ ЗАГРУЗКА ===
+        print(f"⏫ Загрузка {len(upload_tasks)} фото...")
         upload_results = []
+        
         with ThreadPoolExecutor(max_workers=min(10, len(upload_tasks))) as executor:
             futures = []
             for task in upload_tasks:
@@ -379,84 +393,71 @@ def upload_batch():
                 futures.append(future)
             
             for future in as_completed(futures):
-                upload_results.append(future.result())
+                result = future.result()
+                if 'error' not in result:
+                    upload_results.append(result)
         
-        print(f"✅ Загрузка завершена за {time.time() - start_upload:.1f}с")
+        print(f"✅ Загружено: {len(upload_results)}/{len(upload_tasks)}")
         
-        # === 3. СОХРАНЕНИЕ ФОТО (параллельно) ===
+        # === СОХРАНЕНИЕ ФОТО ===
         main_photo_result = None
         comment_results = []
         errors = []
         
-        # Разделяем результаты
-        album_results = [r for r in upload_results if 'server' in r and 'photos_list' in r]
-        wall_results = [r for r in upload_results if 'server' in r and 'photo' in r]
-        
         # Сохраняем главное фото
-        if album_results:
+        album_save_results = [r for r in upload_results if 'photos_list' in r]
+        if album_save_results:
             try:
-                main_photo_result = save_album_photo(
+                photo = save_album_photo(
                     config['ACCESS_TOKEN'],
-                    album_results[0]['server'],
-                    album_results[0]['photos_list'],
-                    album_results[0]['hash'],
+                    album_save_results[0]['server'],
+                    album_save_results[0]['photos_list'],
+                    album_save_results[0]['hash'],
                     config['ALBUM_ID'],
                     config.get('GROUP_ID'),
                     row['description']
                 )
                 main_photo_result = {
-                    'id': main_photo_result['id'],
-                    'owner_id': main_photo_result['owner_id'],
+                    'id': photo['id'],
+                    'owner_id': photo['owner_id'],
                     'name': row['main_photo']
                 }
-                print(f"✅ Главное фото сохранено, ID: {main_photo_result['id']}")
+                print(f"✅ Главное фото сохранено: ID {photo['id']}")
             except Exception as e:
                 errors.append(f"Ошибка сохранения главного фото: {str(e)}")
         
-        # Сохраняем фото для комментариев (параллельно)
-        if wall_results:
-            print(f"💾 Сохранение {len(wall_results)} фото комментариев...")
-            
-            def save_wall_photo_task(result, photo_name):
-                try:
-                    photo = save_wall_photo(
-                        config['ACCESS_TOKEN'],
-                        result['server'],
-                        result['photo'],
-                        result['hash'],
-                        config.get('GROUP_ID')
-                    )
-                    return {
-                        'photo_id': photo['id'],
-                        'owner_id': photo['owner_id'],
-                        'name': photo_name
-                    }
-                except Exception as e:
-                    return {'error': str(e), 'name': photo_name}
-            
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                futures = []
-                for i, result in enumerate(wall_results):
-                    photo_name = comment_photos[i] if i < len(comment_photos) else f'photo_{i}'
-                    futures.append(executor.submit(save_wall_photo_task, result, photo_name))
-                
-                for future in as_completed(futures):
-                    result = future.result()
-                    if 'error' in result:
-                        errors.append(f"Ошибка сохранения {result['name']}: {result['error']}")
-                    else:
-                        comment_results.append(result)
-            
-            print(f"✅ Сохранено {len(comment_results)} фото комментариев")
+        # Сохраняем фото для комментариев
+        wall_save_results = [r for r in upload_results if 'photo' in r]
+        for i, result in enumerate(wall_save_results):
+            try:
+                photo_name = comment_files_found[i] if i < len(comment_files_found) else f'comment_{i}'
+                photo = save_wall_photo(
+                    config['ACCESS_TOKEN'],
+                    result['server'],
+                    result['photo'],
+                    result['hash'],
+                    config.get('GROUP_ID')
+                )
+                comment_results.append({
+                    'photo_id': photo['id'],
+                    'owner_id': photo['owner_id'],
+                    'name': photo_name
+                })
+                print(f"✅ Фото комментария сохранено: ID {photo['id']}")
+            except Exception as e:
+                errors.append(f"Ошибка сохранения фото комментария: {str(e)}")
         
-        # === 4. СОЗДАНИЕ КОММЕНТАРИЯ ===
+        # === СОЗДАНИЕ КОММЕНТАРИЯ ===
         comment_id = None
         if comment_results and main_photo_result and not errors:
             try:
-                attachments = [f"photo{photo['owner_id']}_{photo['photo_id']}" 
-                             for photo in comment_results]
+                attachments = []
+                for photo in comment_results:
+                    attachments.append(f"photo{photo['owner_id']}_{photo['photo_id']}")
                 
-                owner_id = -abs(int(config.get('GROUP_ID', main_photo_result['owner_id'])))
+                owner_id = main_photo_result['owner_id']
+                if config.get('GROUP_ID'):
+                    owner_id = -abs(int(config['GROUP_ID']))
                 
                 comment_id = create_comment(
                     config['ACCESS_TOKEN'],
@@ -465,21 +466,20 @@ def upload_batch():
                     attachments,
                     config.get('GROUP_ID')
                 )
-                print(f"✅ Комментарий создан, ID: {comment_id}")
+                print(f"✅ Комментарий создан: ID {comment_id}")
             except Exception as e:
                 errors.append(f"Ошибка создания комментария: {str(e)}")
         
-        # === 5. СОХРАНЯЕМ РЕЗУЛЬТАТ ===
+        # === СОХРАНЕНИЕ РЕЗУЛЬТАТА ===
         result_data = {
             'row_index': row_index,
             'main_photo': row['main_photo'],
-            'description': row['description'],
+            'description': row['description'][:50] + '...' if len(row['description']) > 50 else row['description'],
             'success': len(errors) == 0 and main_photo_result is not None,
             'main_photo_result': main_photo_result,
             'comment_results': comment_results,
             'comment_id': comment_id,
-            'errors': errors,
-            'upload_time': time.time() - start_upload
+            'errors': errors
         }
         
         session_data['results'].append(result_data)
@@ -489,16 +489,18 @@ def upload_batch():
         return jsonify({
             'success': True,
             'result': result_data,
-            'progress': f"{session_data['current_row']}/{session_data['total_rows']}"
+            'progress': {
+                'current': session_data['current_row'],
+                'total': session_data['total_rows']
+            }
         })
         
     except Exception as e:
-        print(f"❌ Ошибка пакетной загрузки: {e}")
+        print(f"❌ Ошибка upload-batch: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/status/<session_id>', methods=['GET'])
 def get_status(session_id):
-    """Быстрый статус обработки"""
     session_data = get_session(session_id)
     if not session_data:
         return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
@@ -516,7 +518,6 @@ def get_status(session_id):
 
 @app.route('/api/finalize/<session_id>', methods=['GET'])
 def finalize(session_id):
-    """Завершение сессии"""
     session_data = get_session(session_id)
     if not session_data:
         return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
@@ -525,11 +526,8 @@ def finalize(session_id):
     total = session_data.get('total_rows', 0)
     
     successful = sum(1 for r in results if r.get('success', False))
-    failed = len(results) - successful
-    
     elapsed = time.time() - session_data.get('start_time', time.time())
     
-    # Очищаем данные
     delete_session(session_id)
     
     return jsonify({
@@ -538,15 +536,14 @@ def finalize(session_id):
             'total': total,
             'processed': len(results),
             'successful': successful,
-            'failed': failed,
+            'failed': len(results) - successful,
             'time_elapsed': round(elapsed, 1),
-            'avg_time_per_row': round(elapsed / len(results), 1) if results else 0
+            'avg_time': round(elapsed / len(results), 1) if results else 0
         }
     })
 
 @app.route('/api/cancel/<session_id>', methods=['POST'])
 def cancel(session_id):
-    """Отмена сессии"""
     delete_session(session_id)
     return jsonify({'success': True})
 
@@ -555,6 +552,5 @@ if __name__ == '__main__':
     os.makedirs('static', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Запуск сервера на порту {port}")
-    print(f"📁 Ожидаем файлы для загрузки в VK")
+    print(f"🚀 VK Загрузчик запущен на порту {port}")
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)

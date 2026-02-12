@@ -106,10 +106,13 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
     """Сохранить фото в альбоме с описанием - РАБОЧАЯ ВЕРСИЯ"""
     
+    print(f"  🔍 RAW description: {repr(description)}")  # ДИАГНОСТИКА!
+    print(f"  🔍 Description type: {type(description)}")  # ДИАГНОСТИКА!
+    
     # Параметры как в рабочем тестовом коде
     save_params = {
         'access_token': access_token,
-        'v': '5.131',  # Явно указываем версию 5.131
+        'v': '5.131',
         'album_id': album_id,
         'server': server,
         'photos_list': photos_list,
@@ -119,22 +122,31 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     if group_id:
         save_params['group_id'] = abs(int(group_id))
     
-    # Добавляем описание - ПРОСТО СТРОКА, БЕЗ encode!
+    # Добавляем описание
     if description and description.strip():
+        # Пробуем разные варианты
         save_params['caption'] = description.strip()
-        print(f"  📝 Описание: {description[:50]}...")
+        print(f"  📝 Описание для отправки: {description.strip()}")
+        print(f"  🔍 Caption param: {repr(save_params['caption'])}")
     
-    # GET запрос с params - КАК В ТЕСТОВОМ КОДЕ!
-    save_response = requests.get(
-        'https://api.vk.com/method/photos.save',
-        params=save_params,
-        timeout=30
-    )
+    # GET запрос с params
+    url = 'https://api.vk.com/method/photos.save'
+    print(f"  🔗 URL: {url}")
+    print(f"  📦 Params: { {k: v if k != 'access_token' else '***' for k, v in save_params.items()} }")
+    
+    save_response = requests.get(url, params=save_params, timeout=30)
     
     if save_response.status_code != 200:
         raise Exception(f"Ошибка сохранения фото: HTTP {save_response.status_code}")
     
     save_data = save_response.json()
+    
+    if 'error' in save_data:
+        error_msg = save_data['error'].get('error_msg', 'Unknown error')
+        print(f"❌ VK Error: {error_msg}")
+        raise Exception(f"VK Error: {error_msg}")
+    
+    return save_data['response']
     
     if 'error' in save_data:
         error_msg = save_data['error'].get('error_msg', 'Unknown error')
@@ -395,6 +407,8 @@ def proxy_upload_album():
         filename = request.form.get('filename')
         upload_url = request.form.get('upload_url')
         description = request.form.get('description', '')
+        
+        print(f"  🔍 Получено описание из формы: {repr(description)}")  # ДИАГНОСТИКА!
         
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'Нет файла'}), 400

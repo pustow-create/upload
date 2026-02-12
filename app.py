@@ -103,31 +103,32 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
     response.raise_for_status()
     return response.json()
 
-def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
+ddef proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
     """Сохранить фото в альбоме с описанием - ТОЧНАЯ КОПИЯ РАБОЧЕГО КОДА"""
     
-    # ШАГ 3: Сохраняем фото в альбоме с описанием (ПОЛНАЯ КОПИЯ ВАШЕГО РАБОЧЕГО КОДА)
+    # Сохраняем фото в альбоме с описанием - КАК В ТЕСТОВОМ КОДЕ
     save_params = {
         'access_token': access_token,
-        'v': VK_API_VERSION,
+        'v': '5.131',  # ЯВНО УКАЗЫВАЕМ 5.131 КАК В ТЕСТОВОМ КОДЕ!
+        'group_id': abs(int(group_id)) if group_id else None,
         'album_id': album_id,
         'server': server,
         'photos_list': photos_list,
         'hash': hash_value,
     }
     
-    if group_id:
-        save_params['group_id'] = abs(int(group_id))
+    # Убираем None значения
+    save_params = {k: v for k, v in save_params.items() if v is not None}
     
-    # Добавляем описание - ТОЧНО КАК В ВАШЕМ РАБОЧЕМ КОДЕ
+    # Добавляем описание - ПРОСТО СТРОКА КАК В ТЕСТОВОМ КОДЕ
     if description and description.strip():
         save_params['caption'] = description.strip()
         print(f"  📝 Описание: {description[:50]}...")
     
-    # Отправляем запрос - ТОЧНО КАК В ВАШЕМ РАБОЧЕМ КОДЕ
-    save_response = requests.post(
+    # GET запрос - КАК В ТЕСТОВОМ КОДЕ!
+    save_response = requests.get(
         'https://api.vk.com/method/photos.save',
-        data=save_params,  # data, не json!
+        params=save_params,  # params, не data!
         timeout=30
     )
     
@@ -135,6 +136,11 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
         raise Exception(f"Ошибка сохранения фото: HTTP {save_response.status_code}")
         
     save_data = save_response.json()
+    
+    if 'error' in save_data:
+        raise Exception(f"VK Error: {save_data['error']['error_msg']}")
+    
+    return save_data['response']
     
     if 'error' in save_data:
         raise Exception(f"VK Error: {save_data['error']['error_msg']}")

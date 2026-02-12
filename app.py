@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY', 'proxy-secret-key')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB максимум
-app.config['JSON_AS_ASCII'] = False  # ВАЖНО: для кириллицы!
+app.config['JSON_AS_ASCII'] = False  # Для кириллицы!
 
 VK_API_VERSION = "5.199"
 sessions = {}
@@ -34,7 +34,7 @@ def delete_session(session_id):
         if session_id in sessions:
             del sessions[session_id]
 
-# ==================== ПАРСИНГ КОНФИГА ====================
+# ==================== ПАРСИНГ ====================
 def parse_config(content):
     config = {}
     if isinstance(content, bytes):
@@ -47,12 +47,9 @@ def parse_config(content):
         if '=' in line:
             key, value = line.split('=', 1)
             config[key.strip().upper()] = value.strip()
-    
     return config
 
-# ==================== ПАРСИНГ CSV ====================
 def parse_csv(content):
-    """Парсинг CSV с описанием из 2 столбца (UTF-8)"""
     if isinstance(content, bytes):
         content = content.decode('utf-8-sig', errors='ignore')
     
@@ -108,7 +105,6 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
 
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
     """Сохранить фото в альбоме с ОПИСАНИЕМ (кириллица!)"""
-    
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -118,7 +114,7 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
         'album_id': album_id,
     }
     
-    # ВАЖНО: Добавляем описание
+    # Добавляем описание для кириллицы
     if description and description.strip():
         params['caption'] = description.strip()
         print(f"  📝 Отправляем описание: {description[:50]}...")
@@ -126,9 +122,8 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    # ВАЖНО: Используем JSON для сохранения кириллицы!
+    # ВАЖНО: используем json для сохранения кириллицы!
     headers = {'Content-Type': 'application/json'}
-    
     response = requests.post(
         'https://api.vk.com/method/photos.save', 
         json=params,
@@ -158,14 +153,7 @@ def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    headers = {'Content-Type': 'application/json'}
-    
-    response = requests.post(
-        'https://api.vk.com/method/photos.saveWallPhoto', 
-        json=params,
-        headers=headers,
-        timeout=30
-    )
+    response = requests.post('https://api.vk.com/method/photos.saveWallPhoto', data=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     if 'error' in result:
@@ -173,9 +161,9 @@ def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None
     return result['response']
 
 def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id=None):
-    """Создание комментария ОТ ИМЕНИ ГРУППЫ!"""
+    """Создание комментария ОТ ИМЕНИ ГРУППЫ"""
     
-    # ВАЖНО: owner_id должен быть отрицательным для группы
+    # ВАЖНО: для группы owner_id должен быть отрицательным
     if group_id:
         owner_id = -abs(int(group_id))
     
@@ -186,19 +174,14 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
         'photo_id': photo_id,
         'message': '',
         'attachments': ','.join(attachments),
-        'from_group': 1  # КЛЮЧЕВОЕ! 1 = от имени группы
+        'from_group': 1  # КЛЮЧЕВОЙ ПАРАМЕТР - комментарий от имени группы!
     }
+    if group_id:
+        params['group_id'] = abs(int(group_id))
     
-    print(f"  💬 Комментарий от группы, owner_id={owner_id}, from_group=1")
+    print(f"  💬 Создание комментария от имени группы, owner_id={owner_id}, from_group=1")
     
-    headers = {'Content-Type': 'application/json'}
-    
-    response = requests.post(
-        'https://api.vk.com/method/photos.createComment', 
-        json=params,
-        headers=headers,
-        timeout=30
-    )
+    response = requests.post('https://api.vk.com/method/photos.createComment', data=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     
@@ -207,7 +190,7 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
         print(f"  ❌ Ошибка: {error_msg}")
         raise Exception(f"VK Error: {error_msg}")
     
-    print(f"  ✅ Комментарий создан: {result['response'].get('comment_id')}")
+    print(f"  ✅ Комментарий создан, ID: {result['response'].get('comment_id')}")
     return result['response']
 
 def proxy_get_upload_server(access_token, album_id, group_id=None):
@@ -220,14 +203,7 @@ def proxy_get_upload_server(access_token, album_id, group_id=None):
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    headers = {'Content-Type': 'application/json'}
-    
-    response = requests.post(
-        'https://api.vk.com/method/photos.getUploadServer', 
-        json=params,
-        headers=headers,
-        timeout=30
-    )
+    response = requests.post('https://api.vk.com/method/photos.getUploadServer', data=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     if 'error' in result:
@@ -243,14 +219,7 @@ def proxy_get_wall_upload_server(access_token, group_id=None):
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    headers = {'Content-Type': 'application/json'}
-    
-    response = requests.post(
-        'https://api.vk.com/method/photos.getWallUploadServer', 
-        json=params,
-        headers=headers,
-        timeout=30
-    )
+    response = requests.post('https://api.vk.com/method/photos.getWallUploadServer', data=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     if 'error' in result:
@@ -293,14 +262,7 @@ def test_vk():
             'access_token': token,
             'v': VK_API_VERSION
         }
-        headers = {'Content-Type': 'application/json'}
-        
-        response = requests.post(
-            'https://api.vk.com/method/users.get', 
-            json=params,
-            headers=headers,
-            timeout=10
-        )
+        response = requests.post('https://api.vk.com/method/users.get', data=params, timeout=10)
         result = response.json()
         
         if 'error' in result:
@@ -409,7 +371,7 @@ def get_upload_urls(session_id, row_index):
                     )
                 })
         
-        # ВАЖНО: Передаем описание в браузер!
+        # Передаем описание в браузер
         return jsonify({
             'success': True,
             'row_index': row_index,
@@ -457,7 +419,7 @@ def proxy_upload_album():
             upload_result['hash'],
             config['ALBUM_ID'],
             config.get('GROUP_ID'),
-            description  # ВАЖНО: передаем описание!
+            description  # Передаем описание!
         )
         
         return jsonify({
@@ -525,10 +487,6 @@ def proxy_create_comment_endpoint():
         
         config = session_data.get('config', {})
         group_id = config.get('GROUP_ID')
-        
-        # ВАЖНО: owner_id должен быть отрицательным для группы
-        if group_id:
-            owner_id = -abs(int(group_id))
         
         result = proxy_create_comment(
             config['ACCESS_TOKEN'],

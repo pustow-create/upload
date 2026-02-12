@@ -8,7 +8,8 @@ import io
 from datetime import timedelta
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # ==================== НАСТРОЙКА ====================
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -19,7 +20,38 @@ app.config['JSON_AS_ASCII'] = False
 VK_API_VERSION = "5.131"
 sessions = {}
 session_lock = threading.Lock()
-executor = ThreadPoolExecutor(max_workers=5)  # Пул потоков для параллельной загрузки
+
+# ==================== ОПТИМИЗАЦИЯ ЗАПРОСОВ ====================
+def create_session_with_retries():
+    """Создает сессию с повторными попытками и keep-alive"""
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        read=3,
+        connect=3,
+        backoff_factor=0.3,
+        status_forcelist=(500, 502, 504)
+    )
+    adapter = HTTPAdapter(
+        max_retries=retry,
+        pool_connections=20,
+        pool_maxsize=20
+    )
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
+# Создаем пул сессий для разных API
+vk_session = create_session_with_retries()
+upload_sessions = [create_session_with_retries() for _ in range(5)]
+upload_session_index = 0
+
+def get_upload_session():
+    """Получает сессию для загрузки по кругу (round-robin)"""
+    global upload_session_index
+    session = upload_sessions[upload_session_index % len(upload_sessions)]
+    upload_session_index += 1
+    return session
 
 # ==================== ХРАНЕНИЕ СЕССИЙ ====================
 def get_session(session_id):
@@ -109,23 +141,28 @@ def parse_csv(content):
 
 # ==================== ПРОКСИ-ФУНКЦИИ ДЛЯ VK ====================
 def proxy_upload_to_album(upload_url, file_data, filename):
+    """Загрузка фото в альбом с keep-alive"""
+    session = get_upload_session()
     files = {'file1': (filename, file_data, 'image/jpeg')}
-    response = requests.post(upload_url, files=files, timeout=60)
+    response = session.post(upload_url, files=files, timeout=60)
     response.raise_for_status()
     return response.json()
 
 def proxy_upload_to_wall(upload_url, file_data, filename):
+    """Загрузка фото на стену с keep-alive"""
+    session = get_upload_session()
     files = {'photo': (filename, file_data, 'image/jpeg')}
-    response = requests.post(upload_url, files=files, timeout=60)
+    response = session.post(upload_url, files=files, timeout=60)
     response.raise_for_status()
     return response.json()
 
 def proxy_get_upload_server(access_token, album_id, group_id=None):
+    """Получение сервера с кэшированием"""
     params = {'access_token': access_token, 'v': VK_API_VERSION, 'album_id': album_id}
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    response = requests.get('https://api.vk.com/method/photos.getUploadServer', params=params, timeout=30)
+    response = vk_session.get('https://api.vk.com/method/photos.getUploadServer', params=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     if 'error' in result:
@@ -133,11 +170,12 @@ def proxy_get_upload_server(access_token, album_id, group_id=None):
     return result['response']['upload_url']
 
 def proxy_get_wall_upload_server(access_token, group_id=None):
+    """Получение сервера для стены с кэшированием"""
     params = {'access_token': access_token, 'v': VK_API_VERSION}
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    response = requests.get('https://api.vk.com/method/photos.getWallUploadServer', params=params, timeout=30)
+    response = vk_session.get('https://api.vk.com/method/photos.getWallUploadServer', params=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     if 'error' in result:
@@ -145,6 +183,7 @@ def proxy_get_wall_upload_server(access_token, group_id=None):
     return result['response']['upload_url']
 
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
+    """Сохранение фото в альбоме"""
     params = {
         'access_token': access_token,
         'v': '5.131',
@@ -160,7 +199,7 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     if description and description.strip():
         params['caption'] = description.strip()
     
-    response = requests.get('https://api.vk.com/method/photos.save', params=params, timeout=30)
+    response = vk_session.get('https://api.vk.com/method/photos.save', params=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     
@@ -169,6 +208,7 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     return result['response']
 
 def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None):
+    """Сохранение фото для стены"""
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -179,7 +219,7 @@ def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    response = requests.post('https://api.vk.com/method/photos.saveWallPhoto', data=params, timeout=30)
+    response = vk_session.post('https://api.vk.com/method/photos.saveWallPhoto', data=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     if 'error' in result:
@@ -187,6 +227,7 @@ def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None
     return result['response']
 
 def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id=None):
+    """Создание комментария"""
     if group_id:
         owner_id = -abs(int(group_id))
     
@@ -202,7 +243,7 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    response = requests.post('https://api.vk.com/method/photos.createComment', data=params, timeout=30)
+    response = vk_session.post('https://api.vk.com/method/photos.createComment', data=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     
@@ -210,75 +251,6 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
         raise Exception(f"VK Error: {result['error']['error_msg']}")
     
     return {'comment_id': result['response']}
-
-# ==================== УСКОРЕННАЯ ЗАГРУЗКА ====================
-def upload_photo_batch(upload_items):
-    """Параллельная загрузка нескольких фото"""
-    with ThreadPoolExecutor(max_workers=10) as batch_executor:
-        futures = []
-        for item in upload_items:
-            future = batch_executor.submit(
-                proxy_upload_to_album,
-                item['upload_url'],
-                item['file_data'],
-                item['filename']
-            )
-            futures.append((future, item))
-        
-        results = []
-        for future, item in futures:
-            try:
-                upload_result = future.result(timeout=60)
-                results.append({
-                    'success': True,
-                    'filename': item['filename'],
-                    'upload_result': upload_result,
-                    'description': item.get('description', '')
-                })
-            except Exception as e:
-                results.append({
-                    'success': False,
-                    'filename': item['filename'],
-                    'error': str(e)
-                })
-        return results
-
-def upload_comment_photos_batch(access_token, group_id, photos_with_urls):
-    """Параллельная загрузка комментариев"""
-    with ThreadPoolExecutor(max_workers=10) as batch_executor:
-        futures = []
-        for item in photos_with_urls:
-            future = batch_executor.submit(
-                proxy_upload_to_wall,
-                item['upload_url'],
-                item['file_data'],
-                item['filename']
-            )
-            futures.append((future, item))
-        
-        results = []
-        for future, item in futures:
-            try:
-                upload_result = future.result(timeout=60)
-                save_result = proxy_save_wall_photo(
-                    access_token,
-                    upload_result['server'],
-                    upload_result['photo'],
-                    upload_result['hash'],
-                    group_id
-                )
-                results.append({
-                    'success': True,
-                    'filename': item['filename'],
-                    'photo': save_result[0]
-                })
-            except Exception as e:
-                results.append({
-                    'success': False,
-                    'filename': item['filename'],
-                    'error': str(e)
-                })
-        return results
 
 # ==================== ОСНОВНЫЕ МАРШРУТЫ ====================
 @app.route('/')
@@ -308,7 +280,7 @@ def test_vk():
             return jsonify({'success': False, 'error': 'Нет ACCESS_TOKEN'}), 400
         
         params = {'access_token': token, 'v': VK_API_VERSION}
-        response = requests.get('https://api.vk.com/method/users.get', params=params, timeout=10)
+        response = vk_session.get('https://api.vk.com/method/users.get', params=params, timeout=10)
         result = response.json()
         
         if 'error' in result:
@@ -392,15 +364,18 @@ def get_upload_urls(session_id, row_index):
             config.get('GROUP_ID')
         )
         
+        # КЭШИРУЕМ URL для комментариев - один на все группы
+        wall_upload_url = proxy_get_wall_upload_server(
+            config['ACCESS_TOKEN'], 
+            config.get('GROUP_ID')
+        )
+        
         comment_urls = []
         for i in range(0, len(row['comment_photos']), 2):
             group = row['comment_photos'][i:i+2]
             comment_urls.append({
                 'group': group,
-                'upload_url': proxy_get_wall_upload_server(
-                    config['ACCESS_TOKEN'], 
-                    config.get('GROUP_ID')
-                )
+                'upload_url': wall_upload_url  # ОДИН URL для всех!
             })
         
         return jsonify({
@@ -419,9 +394,7 @@ def get_upload_urls(session_id, row_index):
 
 @app.route('/api/proxy/upload-album', methods=['POST'])
 def proxy_upload_album():
-    """Быстрая загрузка одного фото в альбом"""
     try:
-        start_time = time.time()
         session_id = request.form.get('session_id')
         filename = request.form.get('filename')
         upload_url = request.form.get('upload_url')
@@ -439,131 +412,13 @@ def proxy_upload_album():
         
         config = session_data.get('config', {})
         
-        # Загружаем и сохраняем
         upload_result = proxy_upload_to_album(upload_url, file_data, filename)
         save_result = proxy_save_album_photo(
             config['ACCESS_TOKEN'], upload_result['server'], upload_result['photos_list'],
             upload_result['hash'], config['ALBUM_ID'], config.get('GROUP_ID'), description
         )
         
-        elapsed = time.time() - start_time
-        print(f"⚡ Фото {filename} загружено за {elapsed:.1f}с")
-        
         return jsonify({'success': True, 'photo': save_result[0]})
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/proxy/upload-album-batch', methods=['POST'])
-def proxy_upload_album_batch():
-    """ПАРАЛЛЕЛЬНАЯ загрузка нескольких фото в альбом"""
-    try:
-        start_time = time.time()
-        data = request.json
-        session_id = data.get('session_id')
-        photos = data.get('photos', [])
-        
-        session_data = get_session(session_id)
-        if not session_data:
-            return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
-        
-        config = session_data.get('config', {})
-        
-        # Готовим список для параллельной загрузки
-        upload_items = []
-        for photo in photos:
-            # Получаем файл из сессии или временного хранилища
-            file_data = photo.get('file_data')
-            if file_data and isinstance(file_data, str):
-                import base64
-                file_data = base64.b64decode(file_data)
-            
-            upload_items.append({
-                'upload_url': photo['upload_url'],
-                'file_data': file_data,
-                'filename': photo['filename'],
-                'description': photo.get('description', '')
-            })
-        
-        # Параллельная загрузка
-        upload_results = upload_photo_batch(upload_items)
-        
-        # Сохраняем каждое фото
-        final_results = []
-        for result in upload_results:
-            if result['success']:
-                try:
-                    save_result = proxy_save_album_photo(
-                        config['ACCESS_TOKEN'],
-                        result['upload_result']['server'],
-                        result['upload_result']['photos_list'],
-                        result['upload_result']['hash'],
-                        config['ALBUM_ID'],
-                        config.get('GROUP_ID'),
-                        result['description']
-                    )
-                    final_results.append({
-                        'success': True,
-                        'filename': result['filename'],
-                        'photo': save_result[0]
-                    })
-                except Exception as e:
-                    final_results.append({
-                        'success': False,
-                        'filename': result['filename'],
-                        'error': str(e)
-                    })
-            else:
-                final_results.append({
-                    'success': False,
-                    'filename': result['filename'],
-                    'error': result['error']
-                })
-        
-        elapsed = time.time() - start_time
-        print(f"⚡ Пакет из {len(photos)} фото загружен за {elapsed:.1f}с")
-        
-        return jsonify({'success': True, 'results': final_results})
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/proxy/upload-wall-batch', methods=['POST'])
-def proxy_upload_wall_batch():
-    """ПАРАЛЛЕЛЬНАЯ загрузка нескольких фото на стену"""
-    try:
-        data = request.json
-        session_id = data.get('session_id')
-        photos = data.get('photos', [])
-        
-        session_data = get_session(session_id)
-        if not session_data:
-            return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
-        
-        config = session_data.get('config', {})
-        
-        # Подготавливаем данные для загрузки
-        photos_with_urls = []
-        for photo in photos:
-            file_data = photo.get('file_data')
-            if file_data and isinstance(file_data, str):
-                import base64
-                file_data = base64.b64decode(file_data)
-            
-            photos_with_urls.append({
-                'upload_url': photo['upload_url'],
-                'file_data': file_data,
-                'filename': photo['filename']
-            })
-        
-        # Параллельная загрузка и сохранение
-        results = upload_comment_photos_batch(
-            config['ACCESS_TOKEN'],
-            config.get('GROUP_ID'),
-            photos_with_urls
-        )
-        
-        return jsonify({'success': True, 'results': results})
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -586,6 +441,7 @@ def proxy_upload_wall():
             return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
         
         config = session_data.get('config', {})
+        
         upload_result = proxy_upload_to_wall(upload_url, file_data, filename)
         save_result = proxy_save_wall_photo(
             config['ACCESS_TOKEN'], upload_result['server'], upload_result['photo'],
@@ -637,6 +493,18 @@ def save_result():
             return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
         
         row = session_data['csv_data'][row_index]
+        
+        # Проверяем, все ли комментарии загружены
+        uploaded_comment_files = set()
+        for comment in comment_results:
+            for photo in comment.get('photos', []):
+                uploaded_comment_files.add(photo.get('name'))
+        
+        missing_comments = set(row['comment_photos']) - uploaded_comment_files
+        if missing_comments:
+            print(f"⚠️ Не загружены комментарии: {missing_comments}")
+            errors.append(f"Отсутствуют комментарии: {missing_comments}")
+        
         result = {
             'row_index': row_index,
             'main_photo': row['main_photo'],
@@ -644,7 +512,8 @@ def save_result():
             'success': len(errors) == 0 and main_photo_result is not None,
             'main_photo_result': main_photo_result,
             'comment_results': comment_results,
-            'errors': errors
+            'errors': errors,
+            'missing_comments': list(missing_comments)
         }
         
         session_data.setdefault('results', []).append(result)
@@ -669,15 +538,33 @@ def finalize(session_id):
         
         successful = sum(1 for r in results if r.get('success'))
         uploaded_files = set()
+        missing_files_details = {}
         
         for r in results:
             if r.get('main_photo_result'):
                 uploaded_files.add(r['main_photo'])
+            
+            # Детально проверяем комментарии
+            row = next((row for row in csv_data if row['main_photo'] == r['main_photo']), None)
+            if row and row['comment_photos']:
+                uploaded_comments = set()
+                for c in r.get('comment_results', []):
+                    for p in c.get('photos', []):
+                        uploaded_comments.add(p.get('name'))
+                
+                missing = set(row['comment_photos']) - uploaded_comments
+                if missing:
+                    missing_files_details[r['main_photo']] = list(missing)
+                    uploaded_files.update(uploaded_comments)  # Всё равно добавляем загруженные
+        
+        all_uploaded_files = set()
+        for r in results:
+            if r.get('main_photo_result'):
+                all_uploaded_files.add(r['main_photo'])
             for c in r.get('comment_results', []):
-                uploaded_files.update(p.get('name') for p in c.get('photos', []))
+                all_uploaded_files.update(p.get('name') for p in c.get('photos', []))
         
-        missing_files = set(required_files) - uploaded_files
-        
+        missing_files = set(required_files) - all_uploaded_files
         elapsed = time.time() - session_data.get('start_time', time.time())
         
         return jsonify({'success': True, 'report': {
@@ -692,9 +579,10 @@ def finalize(session_id):
             },
             'files': {
                 'required_count': len(required_files),
-                'uploaded_count': len(uploaded_files),
+                'uploaded_count': len(all_uploaded_files),
                 'missing_count': len(missing_files),
-                'missing_files': list(missing_files)[:50]
+                'missing_files': list(missing_files)[:50],
+                'missing_details': missing_files_details
             }
         }})
         
@@ -712,6 +600,7 @@ if __name__ == '__main__':
     os.makedirs('templates', exist_ok=True)
     port = int(os.environ.get('PORT', 5000))
     print(f"🚀 Запуск сервера на порту {port}")
-    print(f"⚡ Режим ускоренной загрузки: ThreadPoolExecutor (max_workers=10)")
+    print(f"⚡ Оптимизация: Keep-Alive, пул соединений, повторные попытки")
+    print(f"🔁 Кэширование: URL для комментариев")
     print(f"📁 Главная: http://localhost:{port}/")
     app.run(host='0.0.0.0', port=port, debug=False)

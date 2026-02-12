@@ -103,41 +103,115 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
     response.raise_for_status()
     return response.json()
 
-def test_vk_caption(access_token, owner_id, photo_id, description):
-    """Тестовая функция для проверки загрузки описания"""
+def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
+    """Сохранить фото в альбоме с описанием (кириллица!!!)"""
     
-    # Создаем текстовый файл с описанием в CP1251
-    caption_text = description.strip()
-    caption_bytes = caption_text.encode('cp1251', errors='replace')
-    
-    # Создаем файл для отправки
-    files = {
-        'caption': ('caption.txt', caption_bytes, 'text/plain')
-    }
-    
-    # Параметры запроса
-    data = {
+    # 1. Сохраняем фото без описания
+    save_params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
-        'owner_id': owner_id,
-        'photo_id': photo_id
+        'server': server,
+        'photos_list': photos_list,
+        'hash': hash_value,
+        'album_id': album_id,
     }
     
-    print(f"📝 Отправка описания: {caption_text}")
-    print(f"📦 Байты CP1251: {caption_bytes.hex()}")
+    if group_id:
+        save_params['group_id'] = abs(int(group_id))
     
-    # Отправляем запрос
-    response = requests.post(
-        'https://api.vk.com/method/photos.edit',
-        data=data,
-        files=files,
-        timeout=30
-    )
+    # Сохраняем фото
+    save_response = requests.post('https://api.vk.com/method/photos.save', data=save_params, timeout=30)
+    save_response.raise_for_status()
+    save_result = save_response.json()
     
-    print(f"📊 Статус: {response.status_code}")
-    print(f"📋 Ответ: {response.text[:200]}")
+    if 'error' in save_result:
+        raise Exception(f"VK Error: {save_result['error']['error_msg']}")
     
-    return response.json()
+    saved_photo = save_result['response'][0]
+    
+    # 2. Добавляем описание через photos.edit
+    if description and description.strip():
+        try:
+            # Определяем owner_id
+            if group_id:
+                owner_id = -abs(int(group_id))
+            else:
+                owner_id = saved_photo['owner_id']
+            
+            # ПОДГОТАВЛИВАЕМ ОПИСАНИЕ - ВАЖНО!
+            # VK принимает caption ТОЛЬКО в CP1251
+            caption_text = description.strip()
+            
+            # Создаем multipart/form-data запрос вручную
+            boundary = '----------{}'.format(time.time())
+            boundary = boundary.replace('.', '')
+            
+            # Формируем тело запроса
+            body = []
+            
+            # Добавляем access_token
+            body.append(f'--{boundary}')
+            body.append('Content-Disposition: form-data; name="access_token"')
+            body.append('')
+            body.append(access_token)
+            
+            # Добавляем v
+            body.append(f'--{boundary}')
+            body.append('Content-Disposition: form-data; name="v"')
+            body.append('')
+            body.append(VK_API_VERSION)
+            
+            # Добавляем owner_id
+            body.append(f'--{boundary}')
+            body.append('Content-Disposition: form-data; name="owner_id"')
+            body.append('')
+            body.append(str(owner_id))
+            
+            # Добавляем photo_id
+            body.append(f'--{boundary}')
+            body.append('Content-Disposition: form-data; name="photo_id"')
+            body.append('')
+            body.append(str(saved_photo['id']))
+            
+            # Добавляем caption - КАК ФАЙЛ В CP1251
+            body.append(f'--{boundary}')
+            body.append('Content-Disposition: form-data; name="caption"; filename="caption.txt"')
+            body.append('Content-Type: text/plain; charset=windows-1251')
+            body.append('')
+            body.append(caption_text.encode('cp1251', errors='replace').decode('latin1'))  # ХИТРОСТЬ!
+            
+            # Закрываем boundary
+            body.append(f'--{boundary}--')
+            body.append('')
+            
+            # Собираем тело запроса
+            body_str = '\r\n'.join(body)
+            
+            # Отправляем запрос
+            headers = {
+                'Content-Type': f'multipart/form-data; boundary={boundary}',
+                'Content-Length': str(len(body_str.encode('utf-8')))
+            }
+            
+            edit_response = requests.post(
+                'https://api.vk.com/method/photos.edit',
+                data=body_str.encode('utf-8'),
+                headers=headers,
+                timeout=30
+            )
+            
+            edit_response.raise_for_status()
+            edit_result = edit_response.json()
+            
+            if 'error' not in edit_result:
+                print(f"  ✅ Описание успешно добавлено: {caption_text[:50]}...")
+            else:
+                print(f"  ❌ Ошибка VK: {edit_result['error'].get('error_msg')}")
+                
+        except Exception as e:
+            print(f"  ❌ Ошибка при добавлении описания: {e}")
+    
+    return [saved_photo]
     
     # 2. Если есть описание - редактируем фото
     if description and description.strip():

@@ -15,7 +15,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'proxy-secret-key')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB максимум
 app.config['JSON_AS_ASCII'] = False  # Для кириллицы!
 
-VK_API_VERSION = "5.199"
+VK_API_VERSION = "5.131"  # ИЗМЕНЕНО на 5.131 как в рабочем коде!
 sessions = {}
 session_lock = threading.Lock()
 
@@ -103,188 +103,45 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
     response.raise_for_status()
     return response.json()
 
-ddef proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
-    """Сохранить фото в альбоме с описанием - ТОЧНАЯ КОПИЯ РАБОЧЕГО КОДА"""
+def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
+    """Сохранить фото в альбоме с описанием - РАБОЧАЯ ВЕРСИЯ"""
     
-    # Сохраняем фото в альбоме с описанием - КАК В ТЕСТОВОМ КОДЕ
+    # Параметры как в рабочем тестовом коде
     save_params = {
         'access_token': access_token,
-        'v': '5.131',  # ЯВНО УКАЗЫВАЕМ 5.131 КАК В ТЕСТОВОМ КОДЕ!
-        'group_id': abs(int(group_id)) if group_id else None,
+        'v': '5.131',  # Явно указываем версию 5.131
         'album_id': album_id,
         'server': server,
         'photos_list': photos_list,
         'hash': hash_value,
     }
     
-    # Убираем None значения
-    save_params = {k: v for k, v in save_params.items() if v is not None}
+    if group_id:
+        save_params['group_id'] = abs(int(group_id))
     
-    # Добавляем описание - ПРОСТО СТРОКА КАК В ТЕСТОВОМ КОДЕ
+    # Добавляем описание - ПРОСТО СТРОКА, БЕЗ encode!
     if description and description.strip():
         save_params['caption'] = description.strip()
         print(f"  📝 Описание: {description[:50]}...")
     
-    # GET запрос - КАК В ТЕСТОВОМ КОДЕ!
+    # GET запрос с params - КАК В ТЕСТОВОМ КОДЕ!
     save_response = requests.get(
         'https://api.vk.com/method/photos.save',
-        params=save_params,  # params, не data!
+        params=save_params,
         timeout=30
     )
     
     if save_response.status_code != 200:
         raise Exception(f"Ошибка сохранения фото: HTTP {save_response.status_code}")
-        
+    
     save_data = save_response.json()
     
     if 'error' in save_data:
-        raise Exception(f"VK Error: {save_data['error']['error_msg']}")
-    
-    return save_data['response']
-    
-    if 'error' in save_data:
-        raise Exception(f"VK Error: {save_data['error']['error_msg']}")
-    
-    return save_data['response']
-    
-    if 'error' in save_result:
-        error_msg = save_result['error'].get('error_msg', 'Unknown error')
+        error_msg = save_data['error'].get('error_msg', 'Unknown error')
         print(f"❌ VK Error: {error_msg}")
         raise Exception(f"VK Error: {error_msg}")
     
-    return save_result['response']
-    
-    # 2. Добавляем описание через photos.edit
-    if description and description.strip():
-        try:
-            # Определяем owner_id
-            if group_id:
-                owner_id = -abs(int(group_id))
-            else:
-                owner_id = saved_photo['owner_id']
-            
-            # ПОДГОТАВЛИВАЕМ ОПИСАНИЕ - ВАЖНО!
-            # VK принимает caption ТОЛЬКО в CP1251
-            caption_text = description.strip()
-            
-            # Создаем multipart/form-data запрос вручную
-            boundary = '----------{}'.format(time.time())
-            boundary = boundary.replace('.', '')
-            
-            # Формируем тело запроса
-            body = []
-            
-            # Добавляем access_token
-            body.append(f'--{boundary}')
-            body.append('Content-Disposition: form-data; name="access_token"')
-            body.append('')
-            body.append(access_token)
-            
-            # Добавляем v
-            body.append(f'--{boundary}')
-            body.append('Content-Disposition: form-data; name="v"')
-            body.append('')
-            body.append(VK_API_VERSION)
-            
-            # Добавляем owner_id
-            body.append(f'--{boundary}')
-            body.append('Content-Disposition: form-data; name="owner_id"')
-            body.append('')
-            body.append(str(owner_id))
-            
-            # Добавляем photo_id
-            body.append(f'--{boundary}')
-            body.append('Content-Disposition: form-data; name="photo_id"')
-            body.append('')
-            body.append(str(saved_photo['id']))
-            
-            # Добавляем caption - КАК ФАЙЛ В CP1251
-            body.append(f'--{boundary}')
-            body.append('Content-Disposition: form-data; name="caption"; filename="caption.txt"')
-            body.append('Content-Type: text/plain; charset=windows-1251')
-            body.append('')
-            body.append(caption_text.encode('cp1251', errors='replace').decode('latin1'))  # ХИТРОСТЬ!
-            
-            # Закрываем boundary
-            body.append(f'--{boundary}--')
-            body.append('')
-            
-            # Собираем тело запроса
-            body_str = '\r\n'.join(body)
-            
-            # Отправляем запрос
-            headers = {
-                'Content-Type': f'multipart/form-data; boundary={boundary}',
-                'Content-Length': str(len(body_str.encode('utf-8')))
-            }
-            
-            edit_response = requests.post(
-                'https://api.vk.com/method/photos.edit',
-                data=body_str.encode('utf-8'),
-                headers=headers,
-                timeout=30
-            )
-            
-            edit_response.raise_for_status()
-            edit_result = edit_response.json()
-            
-            if 'error' not in edit_result:
-                print(f"  ✅ Описание успешно добавлено: {caption_text[:50]}...")
-            else:
-                print(f"  ❌ Ошибка VK: {edit_result['error'].get('error_msg')}")
-                
-        except Exception as e:
-            print(f"  ❌ Ошибка при добавлении описания: {e}")
-    
-    return [saved_photo]
-    
-    # 2. Если есть описание - редактируем фото
-    if description and description.strip():
-        try:
-            # ОПРЕДЕЛЯЕМ owner_id (для группы - отрицательный)
-            owner_id = saved_photo['owner_id']
-            if group_id:
-                owner_id = -abs(int(group_id))
-            
-            # ФОРМИРУЕМ правильные параметры для edit
-            edit_data = {
-                'access_token': access_token,
-                'v': VK_API_VERSION,
-                'owner_id': owner_id,
-                'photo_id': saved_photo['id'],
-            }
-            
-            # КОДИРУЕМ caption ПРАВИЛЬНО - как отдельный файл в CP1251
-            files = {}
-            if description and description.strip():
-                # Конвертируем UTF-8 строку в CP1251 байты
-                caption_bytes = description.strip().encode('cp1251', errors='replace')
-                files['caption'] = ('caption.txt', caption_bytes, 'text/plain')
-                print(f"  📝 Описание (CP1251): {description[:50]}...")
-            
-            # Отправляем запрос с files
-            edit_response = requests.post(
-                'https://api.vk.com/method/photos.edit', 
-                data=edit_data, 
-                files=files, 
-                timeout=30
-            )
-            
-            edit_response.raise_for_status()
-            edit_result = edit_response.json()
-            
-            if 'error' in edit_result:
-                print(f"  ❌ Ошибка VK: {edit_result['error'].get('error_msg')}")
-            else:
-                print(f"  ✅ Описание добавлено")
-                
-        except Exception as e:
-            print(f"  ❌ Ошибка при добавлении описания: {e}")
-            print(f"  ⚠️ Тип ошибки: {type(e).__name__}")
-            import traceback
-            traceback.print_exc()
-    
-    return [saved_photo]
+    return save_data['response']
 
 def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None):
     """Сохранить фото для стены"""
@@ -308,7 +165,6 @@ def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None
 def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id=None):
     """Создание комментария ОТ ИМЕНИ ГРУППЫ"""
     
-    # ВАЖНО: для группы owner_id должен быть отрицательным
     if group_id:
         owner_id = -abs(int(group_id))
     
@@ -319,7 +175,7 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
         'photo_id': photo_id,
         'message': '',
         'attachments': ','.join(attachments),
-        'from_group': 1  # ← ТОЛЬКО ЭТО ДОБАВЛЯЕМ!
+        'from_group': 1
     }
     if group_id:
         params['group_id'] = abs(int(group_id))
@@ -348,7 +204,7 @@ def proxy_get_upload_server(access_token, album_id, group_id=None):
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    response = requests.post('https://api.vk.com/method/photos.getUploadServer', data=params, timeout=30)
+    response = requests.get('https://api.vk.com/method/photos.getUploadServer', params=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     if 'error' in result:
@@ -364,7 +220,7 @@ def proxy_get_wall_upload_server(access_token, group_id=None):
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    response = requests.post('https://api.vk.com/method/photos.getWallUploadServer', data=params, timeout=30)
+    response = requests.get('https://api.vk.com/method/photos.getWallUploadServer', params=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     if 'error' in result:
@@ -407,7 +263,7 @@ def test_vk():
             'access_token': token,
             'v': VK_API_VERSION
         }
-        response = requests.post('https://api.vk.com/method/users.get', data=params, timeout=10)
+        response = requests.get('https://api.vk.com/method/users.get', params=params, timeout=10)
         result = response.json()
         
         if 'error' in result:
@@ -516,7 +372,6 @@ def get_upload_urls(session_id, row_index):
                     )
                 })
         
-        # Передаем описание в браузер
         return jsonify({
             'success': True,
             'row_index': row_index,
@@ -564,7 +419,7 @@ def proxy_upload_album():
             upload_result['hash'],
             config['ALBUM_ID'],
             config.get('GROUP_ID'),
-            description  # Передаем описание!
+            description
         )
         
         return jsonify({

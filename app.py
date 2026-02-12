@@ -8,7 +8,6 @@ import io
 from datetime import timedelta
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
-import urllib.parse
 
 # ==================== НАСТРОЙКА ====================
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -55,17 +54,15 @@ def parse_config(content):
 def parse_csv(content):
     """Парсинг CSV с описанием из 2 столбца (UTF-8)"""
     if isinstance(content, bytes):
-        content = content.decode('utf-8-sig', errors='ignore')  # Важно: utf-8-sig для BOM
+        content = content.decode('utf-8-sig', errors='ignore')
     
     lines = [line.strip() for line in content.split('\n') if line.strip()]
     
-    # Определяем разделитель
     delimiter = '|'
     if lines and lines[0].startswith('sep='):
         delimiter = lines[0].split('=')[1].strip()
         lines = lines[1:]
     
-    # Пропускаем заголовок
     if lines and ('Файл изображения' in lines[0] or 'файл' in lines[0].lower()):
         lines = lines[1:]
     
@@ -74,12 +71,11 @@ def parse_csv(content):
         if not line.strip():
             continue
         
-        # Разбиваем по разделителю
         parts = [p.strip().strip('"') for p in line.split(delimiter)]
         
         if len(parts) >= 2:
             main_photo = parts[0].strip()
-            description = parts[1].strip() if len(parts) > 1 else ''  # ОПИСАНИЕ С КИРИЛЛИЦЕЙ
+            description = parts[1].strip() if len(parts) > 1 else ''
             
             comment_photos = []
             if len(parts) > 2 and parts[2].strip():
@@ -88,7 +84,7 @@ def parse_csv(content):
             if main_photo:
                 csv_data.append({
                     'main_photo': main_photo,
-                    'description': description,  # СОХРАНЯЕМ КАК ЕСТЬ, UTF-8
+                    'description': description,
                     'comment_photos': comment_photos
                 })
                 print(f"CSV строка {i+1}: {main_photo} - {description[:30]}...")
@@ -113,7 +109,7 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
     """Сохранить фото в альбоме с ОПИСАНИЕМ (кириллица!)"""
     
-    # ВАЖНО: Кодируем описание в UTF-8 явно
+    # ВАЖНО: Используем JSON вместо form-urlencoded для кириллицы!
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -125,22 +121,18 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     
     # Добавляем описание ТОЛЬКО если оно не пустое
     if description and description.strip():
-        # VK API принимает UTF-8, отправляем как есть
         params['caption'] = description.strip()
         print(f"  📝 Отправляем описание: {description[:50]}...")
     
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    # ВАЖНО: Явно указываем кодировку для requests
-    headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-    
-    # Кодируем параметры вручную для сохранения кириллицы
-    encoded_params = '&'.join([f"{k}={urllib.parse.quote(str(v), safe='')}" for k, v in params.items()])
+    # ВАЖНО: Используем JSON для сохранения кириллицы!
+    headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
         'https://api.vk.com/method/photos.save', 
-        data=encoded_params,
+        json=params,  # Отправляем как JSON, а не form-data!
         headers=headers,
         timeout=30
     )
@@ -149,11 +141,15 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     result = response.json()
     
     if 'error' in result:
-        raise Exception(f"VK Error: {result['error']['error_msg']}")
+        error_msg = result['error'].get('error_msg', 'Unknown error')
+        print(f"❌ VK Error: {error_msg}")
+        raise Exception(f"VK Error: {error_msg}")
     
     # Проверяем, сохранилось ли описание
     if result['response'] and result['response'][0].get('text'):
         print(f"  ✅ Описание сохранено: {result['response'][0]['text'][:50]}...")
+    else:
+        print(f"  ⚠️ Описание не сохранилось в ответе VK")
     
     return result['response']
 
@@ -169,12 +165,12 @@ def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-    encoded_params = '&'.join([f"{k}={urllib.parse.quote(str(v), safe='')}" for k, v in params.items()])
+    # Используем JSON
+    headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
         'https://api.vk.com/method/photos.saveWallPhoto', 
-        data=encoded_params,
+        json=params,
         headers=headers,
         timeout=30
     )
@@ -197,12 +193,12 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-    encoded_params = '&'.join([f"{k}={urllib.parse.quote(str(v), safe='')}" for k, v in params.items()])
+    # Используем JSON
+    headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
         'https://api.vk.com/method/photos.createComment', 
-        data=encoded_params,
+        json=params,
         headers=headers,
         timeout=30
     )
@@ -222,12 +218,12 @@ def proxy_get_upload_server(access_token, album_id, group_id=None):
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-    encoded_params = '&'.join([f"{k}={urllib.parse.quote(str(v), safe='')}" for k, v in params.items()])
+    # Используем JSON
+    headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
         'https://api.vk.com/method/photos.getUploadServer', 
-        data=encoded_params,
+        json=params,
         headers=headers,
         timeout=30
     )
@@ -246,12 +242,12 @@ def proxy_get_wall_upload_server(access_token, group_id=None):
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-    encoded_params = '&'.join([f"{k}={urllib.parse.quote(str(v), safe='')}" for k, v in params.items()])
+    # Используем JSON
+    headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
         'https://api.vk.com/method/photos.getWallUploadServer', 
-        data=encoded_params,
+        json=params,
         headers=headers,
         timeout=30
     )
@@ -261,16 +257,52 @@ def proxy_get_wall_upload_server(access_token, group_id=None):
         raise Exception(f"VK Error: {result['error']['error_msg']}")
     return result['response']['upload_url']
 
-# ==================== API ENDPOINTS ====================
-@app.route('/')
-def index():
-    return render_template('index.html')
+# ==================== ТЕСТ VK ====================
+@app.route('/api/test-vk', methods=['POST'])
+def test_vk():
+    try:
+        config_content = None
+        for file in request.files.getlist('files'):
+            filename = file.filename.lower()
+            if filename == 'config.txt' or (filename.endswith('.txt') and 'config' in filename):
+                config_content = file.read()
+                break
+        
+        if not config_content:
+            return jsonify({'success': False, 'error': 'Не найден config.txt'}), 400
+        
+        config = parse_config(config_content)
+        token = config.get('ACCESS_TOKEN')
+        if not token:
+            return jsonify({'success': False, 'error': 'Нет ACCESS_TOKEN'}), 400
+        
+        # Используем JSON
+        params = {
+            'access_token': token,
+            'v': VK_API_VERSION
+        }
+        headers = {'Content-Type': 'application/json'}
+        
+        response = requests.post(
+            'https://api.vk.com/method/users.get', 
+            json=params,
+            headers=headers,
+            timeout=10
+        )
+        result = response.json()
+        
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']['error_msg']}), 400
+        
+        return jsonify({
+            'success': True,
+            'user': result['response'][0]
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/health')
-def health():
-    return jsonify({'status': 'ok'})
-
-# ==================== 1. АНАЛИЗ CSV ====================
+# ==================== АНАЛИЗ CSV ====================
 @app.route('/api/analyze', methods=['POST'])
 def analyze():
     try:
@@ -328,52 +360,7 @@ def analyze():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ==================== 2. ТЕСТ VK ====================
-@app.route('/api/test-vk', methods=['POST'])
-def test_vk():
-    try:
-        config_content = None
-        for file in request.files.getlist('files'):
-            filename = file.filename.lower()
-            if filename == 'config.txt' or (filename.endswith('.txt') and 'config' in filename):
-                config_content = file.read()
-                break
-        
-        if not config_content:
-            return jsonify({'success': False, 'error': 'Не найден config.txt'}), 400
-        
-        config = parse_config(config_content)
-        token = config.get('ACCESS_TOKEN')
-        if not token:
-            return jsonify({'success': False, 'error': 'Нет ACCESS_TOKEN'}), 400
-        
-        params = {
-            'access_token': token,
-            'v': VK_API_VERSION
-        }
-        headers = {'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'}
-        encoded_params = '&'.join([f"{k}={urllib.parse.quote(str(v), safe='')}" for k, v in params.items()])
-        
-        response = requests.post(
-            'https://api.vk.com/method/users.get', 
-            data=encoded_params,
-            headers=headers,
-            timeout=10
-        )
-        result = response.json()
-        
-        if 'error' in result:
-            return jsonify({'success': False, 'error': result['error']['error_msg']}), 400
-        
-        return jsonify({
-            'success': True,
-            'user': result['response'][0]
-        })
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-# ==================== 3. ПОЛУЧИТЬ URL ДЛЯ ЗАГРУЗКИ ====================
+# ==================== ПОЛУЧИТЬ URL ДЛЯ ЗАГРУЗКИ ====================
 @app.route('/api/get-upload-urls/<session_id>/<int:row_index>', methods=['GET'])
 def get_upload_urls(session_id, row_index):
     try:
@@ -410,10 +397,11 @@ def get_upload_urls(session_id, row_index):
                     )
                 })
         
+        # ВАЖНО: Возвращаем описание как есть, Flask сохранит UTF-8
         return jsonify({
             'success': True,
             'row_index': row_index,
-            'description': row['description'],  # UTF-8 строка с кириллицей
+            'description': row['description'],
             'main_photo': {
                 'filename': row['main_photo'],
                 'upload_url': album_url
@@ -424,7 +412,7 @@ def get_upload_urls(session_id, row_index):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ==================== 4. ПРОКСИ-ЗАГРУЗКА В АЛЬБОМ ====================
+# ==================== ПРОКСИ-ЗАГРУЗКА В АЛЬБОМ ====================
 @app.route('/api/proxy/upload-album', methods=['POST'])
 def proxy_upload_album():
     """Прокси-эндпоинт: браузер -> Render -> VK -> Render -> браузер"""
@@ -434,9 +422,10 @@ def proxy_upload_album():
         upload_url = request.form.get('upload_url')
         description = request.form.get('description', '')
         
-        # ВАЖНО: Декодируем UTF-8
+        # ВАЖНО: Сохраняем описание в UTF-8
         if description:
             description = description.strip()
+            print(f"📝 Получено описание: {description}")
         
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'Нет файла'}), 400
@@ -461,7 +450,7 @@ def proxy_upload_album():
             upload_result['hash'],
             config['ALBUM_ID'],
             config.get('GROUP_ID'),
-            description  # UTF-8 строка
+            description
         )
         
         return jsonify({
@@ -473,7 +462,7 @@ def proxy_upload_album():
         print(f"❌ Ошибка загрузки в альбом: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ==================== 5. ПРОКСИ-ЗАГРУЗКА НА СТЕНУ ====================
+# ==================== ПРОКСИ-ЗАГРУЗКА НА СТЕНУ ====================
 @app.route('/api/proxy/upload-wall', methods=['POST'])
 def proxy_upload_wall():
     """Прокси-эндпоинт для загрузки фото на стену"""
@@ -512,7 +501,7 @@ def proxy_upload_wall():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ==================== 6. ПРОКСИ-СОЗДАНИЕ КОММЕНТАРИЯ ====================
+# ==================== ПРОКСИ-СОЗДАНИЕ КОММЕНТАРИЯ ====================
 @app.route('/api/proxy/create-comment', methods=['POST'])
 def proxy_create_comment_endpoint():
     """Прокси-эндпоинт для создания комментария"""
@@ -545,7 +534,7 @@ def proxy_create_comment_endpoint():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ==================== 7. СОХРАНИТЬ РЕЗУЛЬТАТ ====================
+# ==================== СОХРАНИТЬ РЕЗУЛЬТАТ ====================
 @app.route('/api/save-result', methods=['POST'])
 def save_result():
     try:
@@ -585,7 +574,7 @@ def save_result():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ==================== 8. ФИНАЛЬНЫЙ ОТЧЕТ ====================
+# ==================== ФИНАЛЬНЫЙ ОТЧЕТ ====================
 @app.route('/api/finalize/<session_id>', methods=['GET'])
 def finalize(session_id):
     try:
@@ -630,7 +619,7 @@ def finalize(session_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ==================== 9. ОТМЕНА ====================
+# ==================== ОТМЕНА ====================
 @app.route('/api/cancel/<session_id>', methods=['POST'])
 def cancel(session_id):
     delete_session(session_id)

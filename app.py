@@ -69,11 +69,16 @@ def parse_csv(content):
         if not line.strip():
             continue
         
-        parts = [p.strip().strip('"') for p in line.split(delimiter)]
+        # ВАЖНО: не удаляем пустые строки и сохраняем ВСЕ символы
+        parts = line.split(delimiter)
+        parts = [p.strip() for p in parts]
         
         if len(parts) >= 2:
             main_photo = parts[0].strip()
             description = parts[1].strip() if len(parts) > 1 else ''
+            
+            # НЕ заменяем пустое описание на дефисы!
+            # Если описание пустое - оставляем пустую строку
             
             comment_photos = []
             if len(parts) > 2 and parts[2].strip():
@@ -82,13 +87,12 @@ def parse_csv(content):
             if main_photo:
                 csv_data.append({
                     'main_photo': main_photo,
-                    'description': description,
+                    'description': description,  # Сохраняем как есть!
                     'comment_photos': comment_photos
                 })
                 print(f"CSV строка {i+1}: {main_photo} - {description[:50]}...")
     
     return csv_data
-
 # ==================== ПРОКСИ-ФУНКЦИИ ДЛЯ VK ====================
 def proxy_upload_to_album(upload_url, file_data, filename):
     """Прокси-загрузка фото в альбом VK"""

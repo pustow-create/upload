@@ -106,7 +106,7 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
     """Сохранить фото в альбоме"""
     
-    # 1. Сначала сохраняем фото без описания
+    # 1. Сохраняем фото
     data = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -129,34 +129,53 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     
     saved_photo = result['response'][0]
     
-    # 2. Если есть описание - редактируем фото отдельно
+    # 2. Если есть описание - редактируем фото
     if description and description.strip():
         try:
-            edit_params = {
+            # ОПРЕДЕЛЯЕМ owner_id (для группы - отрицательный)
+            owner_id = saved_photo['owner_id']
+            if group_id:
+                owner_id = -abs(int(group_id))
+            
+            # ФОРМИРУЕМ правильные параметры для edit
+            edit_data = {
                 'access_token': access_token,
                 'v': VK_API_VERSION,
-                'owner_id': saved_photo['owner_id'],
+                'owner_id': owner_id,
                 'photo_id': saved_photo['id'],
-                'caption': description.strip().encode('cp1251')  # caption только в edit
             }
             
-            if group_id:
-                edit_params['owner_id'] = -abs(int(group_id))
+            # КОДИРУЕМ caption ПРАВИЛЬНО - как отдельный файл в CP1251
+            files = {}
+            if description and description.strip():
+                # Конвертируем UTF-8 строку в CP1251 байты
+                caption_bytes = description.strip().encode('cp1251', errors='replace')
+                files['caption'] = ('caption.txt', caption_bytes, 'text/plain')
+                print(f"  📝 Описание (CP1251): {description[:50]}...")
             
-            # Отдельный запрос на редактирование
-            edit_response = requests.post('https://api.vk.com/method/photos.edit', data=edit_params, timeout=30)
+            # Отправляем запрос с files
+            edit_response = requests.post(
+                'https://api.vk.com/method/photos.edit', 
+                data=edit_data, 
+                files=files, 
+                timeout=30
+            )
+            
             edit_response.raise_for_status()
             edit_result = edit_response.json()
             
-            if 'error' not in edit_result:
-                print(f"  📝 Описание добавлено: {description[:50]}...")
+            if 'error' in edit_result:
+                print(f"  ❌ Ошибка VK: {edit_result['error'].get('error_msg')}")
             else:
-                print(f"  ⚠️ Не удалось добавить описание: {edit_result['error'].get('error_msg')}")
+                print(f"  ✅ Описание добавлено")
                 
         except Exception as e:
-            print(f"  ⚠️ Ошибка при добавлении описания: {e}")
+            print(f"  ❌ Ошибка при добавлении описания: {e}")
+            print(f"  ⚠️ Тип ошибки: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
     
-    return [saved_photo]  # VK возвращает массив
+    return [saved_photo]
 
 def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None):
     """Сохранить фото для стены"""

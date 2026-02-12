@@ -106,7 +106,7 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
     """Сохранить фото в альбоме с ОПИСАНИЕМ (кириллица!)"""
     params = {
-        'access_token': access_token,
+        'access_token': access_token,  # ✅ токен передается в form-data
         'v': VK_API_VERSION,
         'server': server,
         'photos_list': photos_list,
@@ -114,15 +114,15 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
         'album_id': album_id,
     }
     
-    # Добавляем описание для кириллицы
-    if description and description.strip():
-        params['caption'] = description.strip()
-        print(f"  📝 Описание: {description[:50]}...")
-    
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    # ИСПРАВЛЕНИЕ: меняем json=params на data=params
+    # ✅ кириллица в CP1251 как требует VK API
+    if description and description.strip():
+        params['caption'] = description.strip().encode('cp1251')
+        print(f"  📝 Описание: {description[:50]}...")
+    
+    # ✅ используем data=params для form-data
     response = requests.post('https://api.vk.com/method/photos.save', data=params, timeout=30)
     response.raise_for_status()
     result = response.json()

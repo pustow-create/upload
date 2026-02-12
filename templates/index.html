@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VK Photo Uploader</title>
+    <title>VK Photo Uploader - Proxy Mode</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -12,15 +12,8 @@
             min-height: 100vh;
             padding: 20px;
         }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; color: white; margin-bottom: 30px; }
         .card {
             background: white;
             border-radius: 12px;
@@ -37,9 +30,7 @@
             background: #f8f9fa;
             margin: 20px 0;
         }
-        .upload-area:hover {
-            background: #eef2ff;
-        }
+        .upload-area:hover { background: #eef2ff; }
         .btn {
             padding: 12px 24px;
             border: none;
@@ -49,10 +40,7 @@
             cursor: pointer;
             margin: 5px;
         }
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .btn-success { background: #48bb78; color: white; }
         .btn-danger { background: #fc8181; color: white; }
         .hidden { display: none !important; }
@@ -91,7 +79,7 @@
     <div class="container">
         <div class="header">
             <h1>📤 VK Photo Uploader</h1>
-            <p>Файлы загружаются напрямую в VK, Render только координирует</p>
+            <p>Render работает как прокси-сервер для VK API</p>
         </div>
 
         <!-- ШАГ 1: ЗАГРУЗКА CSV И КОНФИГА -->
@@ -120,16 +108,16 @@
             </button>
         </div>
 
-        <!-- ШАГ 2: ЗАГРУЗКА В VK -->
+        <!-- ШАГ 2: ЗАГРУЗКА В VK ЧЕРЕЗ ПРОКСИ -->
         <div class="card hidden" id="step2">
-            <h2>2. Загрузка в VK</h2>
+            <h2>2. Загрузка в VK (через Render Proxy)</h2>
             
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
             <p id="progressText">0%</p>
             
-            <div id="currentPhoto"></div>
+            <div id="currentPhoto" style="margin: 20px 0; padding: 20px; background: #f7fafc; border-radius: 8px;"></div>
             
             <button class="btn btn-danger" onclick="cancelUpload()">
                 ❌ Отменить
@@ -149,7 +137,7 @@
         <div class="card">
             <h3>📋 Лог выполнения</h3>
             <div class="log" id="log">
-                [Готов] Приложение запущено<br>
+                [Готов] Приложение запущено в режиме прокси<br>
             </div>
         </div>
     </div>
@@ -160,7 +148,6 @@
         let csvFile = null;
         let photoFiles = {};
         let sessionId = null;
-        let csvData = null;
         let totalRows = 0;
         let currentRow = 0;
         let uploadActive = false;
@@ -201,18 +188,20 @@
             photoFiles = {};
             const files = Array.from(e.target.files);
             files.forEach(file => {
-                // СОХРАНЯЕМ С ОРИГИНАЛЬНЫМ ИМЕНЕМ - БЕЗ ИЗМЕНЕНИЙ!
                 photoFiles[file.name] = file;
+                photoFiles[file.name.toLowerCase()] = file;
+                photoFiles[file.name.toUpperCase()] = file;
             });
             addLog(`✅ Загружено ${files.length} фотографий`, 'success');
             
-            // Показываем первые 10 файлов
             let photoList = '<h4>📸 Фотографии:</h4><ul>';
-            Object.keys(photoFiles).slice(0, 10).forEach(name => {
-                photoList += `<li>${name}</li>`;
-            });
-            if (Object.keys(photoFiles).length > 10) {
-                photoList += `<li>... и еще ${Object.keys(photoFiles).length - 10}</li>`;
+            let count = 0;
+            for (let name in photoFiles) {
+                if (count++ > 10) break;
+                if (count === 1) photoList += `<li>${name}</li>`;
+            }
+            if (files.length > 10) {
+                photoList += `<li>... и еще ${files.length - 10}</li>`;
             }
             photoList += '</ul>';
             
@@ -246,10 +235,7 @@
             formData.append('files', configFile);
             
             try {
-                const res = await fetch('/api/test-vk', {
-                    method: 'POST',
-                    body: formData
-                });
+                const res = await fetch('/api/test-vk', { method: 'POST', body: formData });
                 const data = await res.json();
                 
                 if (data.success) {
@@ -279,21 +265,16 @@
             formData.append('files', csvFile);
             
             try {
-                const res = await fetch('/api/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
+                const res = await fetch('/api/analyze', { method: 'POST', body: formData });
                 const data = await res.json();
                 
                 if (data.success) {
                     sessionId = data.session_id;
                     totalRows = data.total_rows;
-                    csvData = data;
                     
                     addLog(`✅ Найдено ${totalRows} записей`, 'success');
                     addLog(`📋 Требуется файлов: ${data.required_count}`, 'info');
                     
-                    // Проверяем наличие файлов
                     const missing = [];
                     data.required_files.forEach(filename => {
                         if (!photoFiles[filename] && !photoFiles[filename.toLowerCase()]) {
@@ -308,32 +289,33 @@
                         addLog(`✅ Все файлы в наличии!`, 'success');
                     }
                     
-                    // Кнопка старта
                     const startBtn = document.createElement('button');
                     startBtn.className = 'btn btn-success';
-                    startBtn.innerText = '🚀 Начать загрузку в VK';
+                    startBtn.style.marginTop = '20px';
+                    startBtn.innerText = '🚀 Начать загрузку через Proxy';
                     startBtn.onclick = startUpload;
                     document.getElementById('step1').appendChild(startBtn);
                     
                 } else {
                     addLog(`❌ ${data.error}`, 'error');
+                    analyzeBtn.disabled = false;
                 }
             } catch (err) {
                 addLog(`❌ Ошибка: ${err.message}`, 'error');
+                analyzeBtn.disabled = false;
             }
         }
 
-        // ==================== ЗАГРУЗКА В VK ====================
+        // ==================== ЗАГРУЗКА ЧЕРЕЗ ПРОКСИ ====================
         async function startUpload() {
             document.getElementById('step1').classList.add('hidden');
             document.getElementById('step2').classList.remove('hidden');
             uploadActive = true;
             
-            addLog('🚀 Начало загрузки...', 'success');
+            addLog('🚀 Начало загрузки через Render Proxy...', 'success');
             
             for (let i = 0; i < totalRows; i++) {
                 if (!uploadActive) break;
-                
                 currentRow = i;
                 await processRow(i);
                 
@@ -347,136 +329,121 @@
             }
         }
 
-        // ==================== ОБРАБОТКА СТРОКИ ====================
+        // ==================== ОБРАБОТКА СТРОКИ ЧЕРЕЗ ПРОКСИ ====================
         async function processRow(rowIndex) {
             addLog(`📄 Строка ${rowIndex + 1}...`, 'info');
             
             try {
-                // 1. Получаем URL для загрузки от Render
+                // 1. Получаем URL для загрузки
                 const urlRes = await fetch(`/api/get-upload-urls/${sessionId}/${rowIndex}`);
                 const urlData = await urlRes.json();
                 
-                if (!urlData.success) {
-                    throw new Error(urlData.error);
-                }
+                if (!urlData.success) throw new Error(urlData.error);
                 
-                // 2. Загружаем основное фото ПРЯМО В VK
+                // 2. Загружаем основное фото ЧЕРЕЗ ПРОКСИ
                 const mainPhoto = urlData.main_photo;
-                let mainResult = null;
-                
-                // Ищем файл без учета регистра
                 const mainFile = photoFiles[mainPhoto.filename] || 
-                               photoFiles[mainPhoto.filename.toLowerCase()] ||
-                               photoFiles[mainPhoto.filename.toUpperCase()];
+                               photoFiles[mainPhoto.filename.toLowerCase()];
+                
+                document.getElementById('currentPhoto').innerHTML = `
+                    <strong>Загрузка:</strong> ${mainPhoto.filename}<br>
+                    <small>Через Render Proxy...</small>
+                `;
                 
                 if (mainFile) {
                     addLog(`   📤 Загрузка ${mainPhoto.filename}...`, 'info');
                     
                     const formData = new FormData();
-                    formData.append('file1', mainFile);
+                    formData.append('file', mainFile);
+                    formData.append('session_id', sessionId);
+                    formData.append('filename', mainPhoto.filename);
+                    formData.append('upload_url', mainPhoto.upload_url);
                     
-                    const uploadRes = await fetch(mainPhoto.upload_url, {
+                    const proxyRes = await fetch('/api/proxy/upload-album', {
                         method: 'POST',
                         body: formData
                     });
                     
-                    const uploadData = await uploadRes.json();
+                    const proxyData = await proxyRes.json();
                     
-                    // 3. Сохраняем фото в альбоме
-                    const saveRes = await fetch('https://api.vk.com/method/photos.save', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: new URLSearchParams({
-                            access_token: (await getConfig()).ACCESS_TOKEN,
-                            server: uploadData.server,
-                            photos_list: uploadData.photos_list,
-                            hash: uploadData.hash,
-                            album_id: (await getConfig()).ALBUM_ID,
-                            v: '5.199'
-                        })
-                    });
+                    if (!proxyData.success) throw new Error(proxyData.error);
                     
-                    const saveData = await saveRes.json();
-                    mainResult = saveData.response[0];
+                    const mainResult = proxyData.photo;
                     addLog(`   ✅ ${mainPhoto.filename} загружено`, 'success');
-                } else {
-                    throw new Error(`Файл ${mainPhoto.filename} не найден`);
-                }
-                
-                // 4. Загружаем фото для комментариев
-                const commentResults = [];
-                
-                for (const group of urlData.comment_groups) {
-                    const groupPhotos = [];
                     
-                    for (const photoName of group.group) {
-                        const photoFile = photoFiles[photoName] || 
-                                        photoFiles[photoName.toLowerCase()] ||
-                                        photoFiles[photoName.toUpperCase()];
+                    // 3. Загружаем фото для комментариев
+                    const commentResults = [];
+                    
+                    for (const group of urlData.comment_groups) {
+                        const groupPhotos = [];
                         
-                        if (photoFile) {
-                            const formData = new FormData();
-                            formData.append('photo', photoFile);
+                        for (const photoName of group.group) {
+                            const photoFile = photoFiles[photoName] || 
+                                           photoFiles[photoName.toLowerCase()];
                             
-                            const uploadRes = await fetch(group.upload_url, {
+                            if (photoFile) {
+                                const formData = new FormData();
+                                formData.append('file', photoFile);
+                                formData.append('session_id', sessionId);
+                                formData.append('filename', photoName);
+                                formData.append('upload_url', group.upload_url);
+                                
+                                const proxyRes = await fetch('/api/proxy/upload-wall', {
+                                    method: 'POST',
+                                    body: formData
+                                });
+                                
+                                const proxyData = await proxyRes.json();
+                                
+                                if (proxyData.success) {
+                                    groupPhotos.push(proxyData.photo);
+                                }
+                            }
+                        }
+                        
+                        // 4. Создаем комментарий
+                        if (groupPhotos.length > 0) {
+                            const attachments = groupPhotos.map(p => `photo${p.owner_id}_${p.id}`);
+                            
+                            const commentRes = await fetch('/api/proxy/create-comment', {
                                 method: 'POST',
-                                body: formData
-                            });
-                            
-                            const uploadData = await uploadRes.json();
-                            
-                            const saveRes = await fetch('https://api.vk.com/method/photos.saveWallPhoto', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: new URLSearchParams({
-                                    access_token: (await getConfig()).ACCESS_TOKEN,
-                                    server: uploadData.server,
-                                    photo: uploadData.photo,
-                                    hash: uploadData.hash,
-                                    v: '5.199'
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    session_id: sessionId,
+                                    owner_id: mainResult.owner_id,
+                                    photo_id: mainResult.id,
+                                    attachments: attachments
                                 })
                             });
                             
-                            const saveData = await saveRes.json();
-                            groupPhotos.push(saveData.response[0]);
+                            const commentData = await commentRes.json();
+                            
+                            if (commentData.success) {
+                                commentResults.push({
+                                    group: group.group,
+                                    photos: groupPhotos
+                                });
+                                addLog(`   💬 Комментарий создан (${groupPhotos.length} фото)`, 'success');
+                            }
                         }
                     }
                     
-                    // 5. Создаем комментарий
-                    if (groupPhotos.length > 0) {
-                        const attachments = groupPhotos.map(p => `photo${p.owner_id}_${p.id}`);
-                        
-                        await fetch('https://api.vk.com/method/photos.createComment', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: new URLSearchParams({
-                                access_token: (await getConfig()).ACCESS_TOKEN,
-                                owner_id: mainResult.owner_id,
-                                photo_id: mainResult.id,
-                                attachments: attachments.join(','),
-                                v: '5.199'
-                            })
-                        });
-                        
-                        commentResults.push({
-                            group: group.group,
-                            photos: groupPhotos
-                        });
-                    }
+                    // 5. Сохраняем результат
+                    await fetch('/api/save-result', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            row_index: rowIndex,
+                            main_photo_result: mainResult,
+                            comment_results: commentResults,
+                            errors: []
+                        })
+                    });
+                    
+                } else {
+                    throw new Error(`Файл ${mainPhoto.filename} не найден`);
                 }
-                
-                // 6. Отправляем результат на Render
-                await fetch('/api/save-result', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: sessionId,
-                        row_index: rowIndex,
-                        main_photo_result: mainResult,
-                        comment_results: commentResults,
-                        errors: []
-                    })
-                });
                 
             } catch (err) {
                 addLog(`   ❌ Ошибка: ${err.message}`, 'error');
@@ -508,14 +475,19 @@
                 document.getElementById('step3').classList.remove('hidden');
                 
                 let html = `
-                    <h3>✅ Загрузка завершена!</h3>
-                    <p>Обработано: ${report.statistics.processed_rows} из ${report.statistics.total_rows} строк</p>
-                    <p>Успешно: ${report.statistics.successful_rows}</p>
-                    <p>Ошибок: ${report.statistics.failed_rows}</p>
+                    <h3 style="color: #48bb78;">✅ Загрузка завершена!</h3>
+                    <p style="font-size: 1.2em; margin: 20px 0;">
+                        Обработано: ${report.statistics.processed_rows} из ${report.statistics.total_rows} строк<br>
+                        Успешно: ${report.statistics.successful_rows}<br>
+                        Ошибок: ${report.statistics.failed_rows}
+                    </p>
                 `;
                 
                 if (report.files.missing_count > 0) {
                     html += `<p style="color: #c05621;">⚠️ Отсутствовало файлов: ${report.files.missing_count}</p>`;
+                    if (report.files.missing_files.length > 0) {
+                        html += `<p><small>${report.files.missing_files.slice(0, 5).join(', ')}</small></p>`;
+                    }
                 }
                 
                 document.getElementById('results').innerHTML = html;
@@ -531,14 +503,6 @@
             }
             addLog('⏸️ Загрузка отменена', 'warning');
             location.reload();
-        }
-
-        // ==================== ВСПОМОГАТЕЛЬНОЕ ====================
-        async function getConfig() {
-            if (!sessionId) return null;
-            const res = await fetch(`/api/session/${sessionId}`);
-            const data = await res.json();
-            return data.config;
         }
     </script>
 </body>

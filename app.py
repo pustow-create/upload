@@ -256,6 +256,25 @@ def proxy_get_wall_upload_server(access_token, group_id=None):
         raise Exception(f"VK Error: {result['error']['error_msg']}")
     return result['response']['upload_url']
 
+# ==================== ОСНОВНЫЕ МАРШРУТЫ ====================
+@app.route('/')
+def index():
+    """Главная страница приложения"""
+    try:
+        return render_template('index.html')
+    except Exception as e:
+        return f"Ошибка загрузки шаблона: {str(e)}", 500
+
+@app.route('/health')
+@app.route('/api/health')
+def health():
+    """Проверка работоспособности"""
+    return jsonify({
+        'status': 'ok',
+        'time': time.time(),
+        'service': 'vk-photo-uploader'
+    })
+
 # ==================== ТЕСТ VK ====================
 @app.route('/api/test-vk', methods=['POST'])
 def test_vk():
@@ -623,15 +642,23 @@ def cancel(session_id):
     delete_session(session_id)
     return jsonify({'success': True})
 
-# ==================== ДОБАВЛЯЕМ HEALTH CHECK ДЛЯ RENDER ====================
-@app.route('/health', methods=['GET'])
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    return jsonify({'status': 'ok', 'time': time.time()})
-
 # ==================== ЗАПУСК ====================
 if __name__ == '__main__':
+    # Создаем необходимые папки
     os.makedirs('static', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
+    
+    # Проверяем наличие index.html
+    template_path = os.path.join('templates', 'index.html')
+    if not os.path.exists(template_path):
+        print(f"⚠️ ВНИМАНИЕ: Файл {template_path} не найден!")
+        print("Создайте файл templates/index.html для работы приложения")
+    else:
+        print(f"✅ Шаблон {template_path} найден")
+    
     port = int(os.environ.get('PORT', 5000))
+    print(f"🚀 Запуск сервера на порту {port}")
+    print(f"📁 Главная страница: http://localhost:{port}/")
+    print(f"❤️ Health check: http://localhost:{port}/health")
+    
     app.run(host='0.0.0.0', port=port, debug=False)

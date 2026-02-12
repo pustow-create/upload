@@ -5,6 +5,7 @@ import requests
 import time
 import threading
 import io
+import chardet
 from datetime import timedelta
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
@@ -38,7 +39,9 @@ def delete_session(session_id):
 def parse_config(content):
     config = {}
     if isinstance(content, bytes):
-        content = content.decode('utf-8', errors='ignore')
+        # Автоопределение кодировки
+        encoding = chardet.detect(content)['encoding'] or 'utf-8'
+        content = content.decode(encoding, errors='ignore')
     
     for line in content.split('\n'):
         line = line.strip()
@@ -50,11 +53,25 @@ def parse_config(content):
     return config
 
 def parse_csv(content):
-    """Парсинг CSV с поддержкой UTF-8 и кириллицы - ИСПРАВЛЕНО"""
+    """Парсинг CSV с поддержкой Windows-1251 и UTF-8"""
     if isinstance(content, bytes):
-        content = content.decode('utf-8-sig', errors='replace')
+        # Пробуем Windows-1251 сначала, затем UTF-8
+        try:
+            content = content.decode('windows-1251')
+            print("✅ CSV в кодировке Windows-1251")
+        except:
+            try:
+                content = content.decode('utf-8-sig')
+                print("✅ CSV в кодировке UTF-8 with BOM")
+            except:
+                content = content.decode('utf-8')
+                print("✅ CSV в кодировке UTF-8")
     
-    lines = [line.rstrip('\r') for line in content.split('\n') if line.strip()]
+    lines = []
+    for line in content.split('\n'):
+        line = line.rstrip('\r')
+        if line.strip():  # Пропускаем только полностью пустые строки
+            lines.append(line)
     
     if not lines:
         return []
@@ -66,41 +83,39 @@ def parse_csv(content):
     if lines[0].startswith('sep='):
         delimiter = lines[0].split('=')[1].strip()
         start_idx = 1
+        print(f"✅ Разделитель: '{delimiter}'")
     
     # Пропускаем заголовок
-    if start_idx < len(lines) and ('Файл изображения' in lines[start_idx] or 
-                                   'файл' in lines[start_idx].lower() or
-                                   'main_photo' in lines[start_idx].lower()):
-        start_idx += 1
+    if start_idx < len(lines):
+        header = lines[start_idx].lower()
+        if 'файл изображения' in header or 'файл' in header or 'image' in header:
+            print(f"✅ Пропущен заголовок: {lines[start_idx][:50]}...")
+            start_idx += 1
     
     csv_data = []
     
     for i in range(start_idx, len(lines)):
-        line = lines[i]
-        if not line.strip():
+        line = lines[i].strip()
+        if not line:
             continue
         
-        # Разбиваем по разделителю
         parts = line.split(delimiter)
-        parts = [p.strip() for p in parts]
         
-        if len(parts) >= 1 and parts[0]:  # Хотя бы есть имя файла
-            main_photo = parts[0]
-            description = parts[1] if len(parts) > 1 else ''
+        if len(parts) >= 1:
+            main_photo = parts[0].strip()
+            description = parts[1].strip() if len(parts) > 1 else ''
             comment_photos = []
             
-            if len(parts) > 2 and parts[2]:
+            if len(parts) > 2 and parts[2].strip():
                 comment_photos = [p.strip() for p in parts[2].split(';') if p.strip()]
             
-            csv_data.append({
-                'main_photo': main_photo,
-                'description': description,
-                'comment_photos': comment_photos
-            })
-            
-            # Показываем в логе
-            desc_preview = description[:30] + '...' if len(description) > 30 else description
-            print(f"📄 CSV строка {len(csv_data)}: {main_photo} | {desc_preview}")
+            if main_photo:
+                csv_data.append({
+                    'main_photo': main_photo,
+                    'description': description,
+                    'comment_photos': comment_photos
+                })
+                print(f"📄 CSV строка {len(csv_data)}: {main_photo} - {description[:50]}...")
     
     print(f"📊 Всего загружено записей: {len(csv_data)}")
     return csv_data
@@ -150,10 +165,9 @@ def proxy_get_wall_upload_server(access_token, group_id=None):
     return result['response']['upload_url']
 
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
-    """Сохранить фото в альбоме с описанием - РАБОЧАЯ ВЕРСИЯ"""
+    """Сохранить фото в альбоме с описанием"""
     
-    if description:
-        print(f"  📝 Описание: {description[:50]}...")
+    print(f"  🔍 Сохраняем фото с описанием: {description[:50]}...")
     
     params = {
         'access_token': access_token,
@@ -169,6 +183,7 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     
     if description and description.strip():
         params['caption'] = description.strip()
+        print(f"  ✅ Описание добавлено в запрос")
     
     response = requests.get('https://api.vk.com/method/photos.save', params=params, timeout=30)
     response.raise_for_status()
@@ -213,14 +228,20 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
     if group_id:
         params['group_id'] = abs(int(group_id))
     
+    print(f"  💬 Комментарий от группы, owner_id={owner_id}")
+    
     response = requests.post('https://api.vk.com/method/photos.createComment', data=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     
     if 'error' in result:
-        raise Exception(f"VK Error: {result['error']['error_msg']}")
+        error_msg = result['error'].get('error_msg', 'Unknown error')
+        print(f"  ❌ Ошибка: {error_msg}")
+        raise Exception(f"VK Error: {error_msg}")
     
-    return {'comment_id': result['response']}
+    comment_id = result['response']
+    print(f"  ✅ Комментарий создан, ID: {comment_id}")
+    return {'comment_id': comment_id}
 
 # ==================== ОСНОВНЫЕ МАРШРУТЫ ====================
 @app.route('/')
@@ -228,8 +249,9 @@ def index():
     return render_template('index.html')
 
 @app.route('/health')
+@app.route('/api/health')
 def health():
-    return jsonify({'status': 'ok'})
+    return jsonify({'status': 'ok', 'time': time.time()})
 
 # ==================== ТЕСТ VK ====================
 @app.route('/api/test-vk', methods=['POST'])
@@ -341,6 +363,9 @@ def get_upload_urls(session_id, row_index):
         row = csv_data[row_index]
         config = session_data.get('config', {})
         
+        print(f"\n🔍 Строка {row_index}: {row['main_photo']}")
+        print(f"  Описание: {row['description'][:50]}...")
+        
         album_url = proxy_get_upload_server(
             config['ACCESS_TOKEN'], 
             config['ALBUM_ID'], 
@@ -350,7 +375,10 @@ def get_upload_urls(session_id, row_index):
         comment_urls = []
         comment_photos = row['comment_photos']
         if comment_photos:
-            groups = [comment_photos[i:i+2] for i in range(0, len(comment_photos), 2)]
+            groups = []
+            for i in range(0, len(comment_photos), 2):
+                groups.append(comment_photos[i:i+2])
+            
             for group in groups:
                 comment_urls.append({
                     'group': group,
@@ -372,6 +400,7 @@ def get_upload_urls(session_id, row_index):
         })
         
     except Exception as e:
+        print(f"❌ Ошибка: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ==================== ПРОКСИ-ЗАГРУЗКА В АЛЬБОМ ====================
@@ -382,6 +411,9 @@ def proxy_upload_album():
         filename = request.form.get('filename')
         upload_url = request.form.get('upload_url')
         description = request.form.get('description', '')
+        
+        print(f"\n📤 Загрузка в альбом: {filename}")
+        print(f"  Описание: {description[:50]}...")
         
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'Нет файла'}), 400
@@ -396,6 +428,7 @@ def proxy_upload_album():
         config = session_data.get('config', {})
         
         upload_result = proxy_upload_to_album(upload_url, file_data, filename)
+        
         save_result = proxy_save_album_photo(
             config['ACCESS_TOKEN'],
             upload_result['server'],
@@ -412,6 +445,7 @@ def proxy_upload_album():
         })
         
     except Exception as e:
+        print(f"❌ Ошибка: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ==================== ПРОКСИ-ЗАГРУЗКА НА СТЕНУ ====================
@@ -435,6 +469,7 @@ def proxy_upload_wall():
         config = session_data.get('config', {})
         
         upload_result = proxy_upload_to_wall(upload_url, file_data, filename)
+        
         save_result = proxy_save_wall_photo(
             config['ACCESS_TOKEN'],
             upload_result['server'],
@@ -482,6 +517,7 @@ def proxy_create_comment_endpoint():
         })
         
     except Exception as e:
+        print(f"❌ Ошибка: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ==================== СОХРАНИТЬ РЕЗУЛЬТАТ ====================
@@ -577,8 +613,16 @@ def cancel(session_id):
 
 # ==================== ЗАПУСК ====================
 if __name__ == '__main__':
+    # Устанавливаем chardet если нет
+    try:
+        import chardet
+    except ImportError:
+        os.system('pip install chardet')
+        import chardet
+    
     os.makedirs('static', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
     port = int(os.environ.get('PORT', 5000))
     print(f"🚀 Запуск сервера на порту {port}")
+    print(f"📁 Главная: http://localhost:{port}/")
     app.run(host='0.0.0.0', port=port, debug=False)

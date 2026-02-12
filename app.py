@@ -106,7 +106,7 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
     """Сохранить фото в альбоме с ОПИСАНИЕМ (кириллица!)"""
     params = {
-        'access_token': access_token,  # ← ЭТО КРИТИЧЕСКИ ВАЖНО!
+        'access_token': access_token,
         'v': VK_API_VERSION,
         'server': server,
         'photos_list': photos_list,
@@ -117,47 +117,13 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     # Добавляем описание для кириллицы
     if description and description.strip():
         params['caption'] = description.strip()
-        print(f"  📝 Отправляем описание: {description[:50]}...")
+        print(f"  📝 Описание: {description[:50]}...")
     
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    # ВАЖНО: используем json для сохранения кириллицы!
-    headers = {'Content-Type': 'application/json'}
-    response = requests.post(
-        'https://api.vk.com/method/photos.save', 
-        json=params,  # ← здесь JSON
-        headers=headers,
-        timeout=30
-    )
-    
-    response.raise_for_status()
-    result = response.json()
-    
-    if 'error' in result:
-        error_msg = result['error'].get('error_msg', 'Unknown error')
-        print(f"❌ VK Error: {error_msg}")
-        raise Exception(f"VK Error: {error_msg}")
-    
-    return result['response']
-    
-    # Добавляем описание для кириллицы
-    if description and description.strip():
-        params['caption'] = description.strip()
-        print(f"  📝 Отправляем описание: {description[:50]}...")
-    
-    if group_id:
-        params['group_id'] = abs(int(group_id))
-    
-    # ВАЖНО: используем json для сохранения кириллицы!
-    headers = {'Content-Type': 'application/json'}
-    response = requests.post(
-        'https://api.vk.com/method/photos.save', 
-        json=params,
-        headers=headers,
-        timeout=30
-    )
-    
+    # ТОЛЬКО ЗДЕСЬ МЕНЯЕМ НА JSON ДЛЯ КИРИЛЛИЦЫ
+    response = requests.post('https://api.vk.com/method/photos.save', json=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     
@@ -201,12 +167,12 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
         'photo_id': photo_id,
         'message': '',
         'attachments': ','.join(attachments),
-        'from_group': 1  # КЛЮЧЕВОЙ ПАРАМЕТР - комментарий от имени группы!
+        'from_group': 1  # ← ТОЛЬКО ЭТО ДОБАВЛЯЕМ!
     }
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    print(f"  💬 Создание комментария от имени группы, owner_id={owner_id}, from_group=1")
+    print(f"  💬 Комментарий от группы, owner_id={owner_id}, from_group=1")
     
     response = requests.post('https://api.vk.com/method/photos.createComment', data=params, timeout=30)
     response.raise_for_status()

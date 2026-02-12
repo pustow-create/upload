@@ -106,13 +106,40 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
     """Сохранить фото в альбоме с ОПИСАНИЕМ (кириллица!)"""
     params = {
-        'access_token': access_token,
+        'access_token': access_token,  # ← ЭТО КРИТИЧЕСКИ ВАЖНО!
         'v': VK_API_VERSION,
         'server': server,
         'photos_list': photos_list,
         'hash': hash_value,
         'album_id': album_id,
     }
+    
+    # Добавляем описание для кириллицы
+    if description and description.strip():
+        params['caption'] = description.strip()
+        print(f"  📝 Отправляем описание: {description[:50]}...")
+    
+    if group_id:
+        params['group_id'] = abs(int(group_id))
+    
+    # ВАЖНО: используем json для сохранения кириллицы!
+    headers = {'Content-Type': 'application/json'}
+    response = requests.post(
+        'https://api.vk.com/method/photos.save', 
+        json=params,  # ← здесь JSON
+        headers=headers,
+        timeout=30
+    )
+    
+    response.raise_for_status()
+    result = response.json()
+    
+    if 'error' in result:
+        error_msg = result['error'].get('error_msg', 'Unknown error')
+        print(f"❌ VK Error: {error_msg}")
+        raise Exception(f"VK Error: {error_msg}")
+    
+    return result['response']
     
     # Добавляем описание для кириллицы
     if description and description.strip():

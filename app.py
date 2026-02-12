@@ -103,31 +103,41 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
     response.raise_for_status()
     return response.json()
 
-def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
-    """Сохранить фото в альбоме"""
+def test_vk_caption(access_token, owner_id, photo_id, description):
+    """Тестовая функция для проверки загрузки описания"""
     
-    # 1. Сохраняем фото
+    # Создаем текстовый файл с описанием в CP1251
+    caption_text = description.strip()
+    caption_bytes = caption_text.encode('cp1251', errors='replace')
+    
+    # Создаем файл для отправки
+    files = {
+        'caption': ('caption.txt', caption_bytes, 'text/plain')
+    }
+    
+    # Параметры запроса
     data = {
         'access_token': access_token,
         'v': VK_API_VERSION,
-        'server': server,
-        'photos_list': photos_list,
-        'hash': hash_value,
-        'album_id': album_id,
+        'owner_id': owner_id,
+        'photo_id': photo_id
     }
     
-    if group_id:
-        data['group_id'] = abs(int(group_id))
+    print(f"📝 Отправка описания: {caption_text}")
+    print(f"📦 Байты CP1251: {caption_bytes.hex()}")
     
-    response = requests.post('https://api.vk.com/method/photos.save', data=data, timeout=30)
-    response.raise_for_status()
-    result = response.json()
+    # Отправляем запрос
+    response = requests.post(
+        'https://api.vk.com/method/photos.edit',
+        data=data,
+        files=files,
+        timeout=30
+    )
     
-    if 'error' in result:
-        error_msg = result['error'].get('error_msg', 'Unknown error')
-        raise Exception(f"VK Error: {error_msg}")
+    print(f"📊 Статус: {response.status_code}")
+    print(f"📋 Ответ: {response.text[:200]}")
     
-    saved_photo = result['response'][0]
+    return response.json()
     
     # 2. Если есть описание - редактируем фото
     if description and description.strip():

@@ -105,8 +105,10 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
 
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
     """Сохранить фото в альбоме с ОПИСАНИЕМ (кириллица!)"""
-    params = {
-        'access_token': access_token,  # ✅ токен передается в form-data
+    
+    # Сначала собираем обычные параметры
+    data = {
+        'access_token': access_token,
         'v': VK_API_VERSION,
         'server': server,
         'photos_list': photos_list,
@@ -115,17 +117,29 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     }
     
     if group_id:
-        params['group_id'] = abs(int(group_id))
+        data['group_id'] = abs(int(group_id))
     
-    # ✅ кириллица в CP1251 как требует VK API
+    # ОПИСАНИЕ - отдельно как файл в CP1251
+    files = {}
     if description and description.strip():
-        params['caption'] = description.strip().encode('cp1251')
-        print(f"  📝 Описание: {description[:50]}...")
+        files['caption'] = ('caption.txt', description.strip().encode('cp1251'), 'text/plain')
+        print(f"  📝 Описание: {description[:50]}... (CP1251)")
     
-    # ✅ используем data=params для form-data
-    response = requests.post('https://api.vk.com/method/photos.save', data=params, timeout=30)
+    # Отправляем с files если есть описание
+    if files:
+        response = requests.post('https://api.vk.com/method/photos.save', data=data, files=files, timeout=30)
+    else:
+        response = requests.post('https://api.vk.com/method/photos.save', data=data, timeout=30)
+    
     response.raise_for_status()
     result = response.json()
+    
+    if 'error' in result:
+        error_msg = result['error'].get('error_msg', 'Unknown error')
+        print(f"❌ VK Error: {error_msg}")
+        raise Exception(f"VK Error: {error_msg}")
+    
+    return result['response']
     
     if 'error' in result:
         error_msg = result['error'].get('error_msg', 'Unknown error')

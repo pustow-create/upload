@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VK Photo Uploader - Proxy Mode</title>
+    <title>VK Photo Uploader</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -29,8 +29,9 @@
             cursor: pointer;
             background: #f8f9fa;
             margin: 20px 0;
+            transition: all 0.3s;
         }
-        .upload-area:hover { background: #eef2ff; }
+        .upload-area:hover { background: #eef2ff; border-color: #5a67d8; }
         .btn {
             padding: 12px 24px;
             border: none;
@@ -39,10 +40,12 @@
             font-weight: 600;
             cursor: pointer;
             margin: 5px;
+            transition: all 0.3s;
         }
         .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
         .btn-success { background: #48bb78; color: white; }
         .btn-danger { background: #fc8181; color: white; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         .hidden { display: none !important; }
         .progress-bar {
             height: 20px;
@@ -70,8 +73,18 @@
             max-height: 200px;
             overflow-y: auto;
             border: 1px solid #e2e8f0;
-            padding: 10px;
+            border-radius: 8px;
+            padding: 15px;
             margin: 10px 0;
+            background: #f7fafc;
+        }
+        .description-preview {
+            background: #ebf8ff;
+            border-left: 4px solid #4299e1;
+            padding: 10px 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 14px;
         }
     </style>
 </head>
@@ -79,61 +92,65 @@
     <div class="container">
         <div class="header">
             <h1>📤 VK Photo Uploader</h1>
-            <p>Render работает как прокси-сервер для VK API</p>
+            <p>Загрузка фото в альбом VK с описанием и комментариями</p>
         </div>
 
-        <!-- ШАГ 1: ЗАГРУЗКА CSV И КОНФИГА -->
+        <!-- ШАГ 1: ЗАГРУЗКА ФАЙЛОВ -->
         <div class="card" id="step1">
             <h2>1. Выберите файлы</h2>
             
             <div class="upload-area" onclick="document.getElementById('configInput').click()">
                 <h3>📁 1. Выберите config.txt и CSV файл</h3>
-                <p>config.txt + файл .csv</p>
+                <p style="color: #666;">config.txt + файл .csv (с разделителем |)</p>
                 <input type="file" id="configInput" multiple accept=".txt,.csv" hidden>
             </div>
             
             <div class="upload-area" onclick="document.getElementById('photoInput').click()">
                 <h3>🖼️ 2. Выберите папку с фотографиями</h3>
-                <p>Все фото из CSV</p>
+                <p style="color: #666;">Все фото, указанные в CSV</p>
                 <input type="file" id="photoInput" webkitdirectory directory multiple hidden>
             </div>
             
             <div id="fileInfo" class="file-list hidden"></div>
             
-            <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeFiles()" disabled>
-                🔍 Анализировать CSV
-            </button>
-            <button class="btn btn-success" id="testVKBtn" onclick="testVK()" disabled>
-                🔌 Тест VK
-            </button>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeFiles()" disabled>
+                    🔍 Анализировать CSV
+                </button>
+                <button class="btn btn-success" id="testVKBtn" onclick="testVK()" disabled>
+                    🔌 Тест VK
+                </button>
+            </div>
         </div>
 
-        <!-- ШАГ 2: ЗАГРУЗКА В VK ЧЕРЕЗ ПРОКСИ -->
+        <!-- ШАГ 2: ЗАГРУЗКА В VK -->
         <div class="card hidden" id="step2">
-            <h2>2. Загрузка в VK (через Render Proxy)</h2>
+            <h2>2. Загрузка в VK</h2>
             
             <div class="progress-bar">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
-            <p id="progressText">0%</p>
+            <p id="progressText" style="text-align: center; font-weight: 600;">0%</p>
             
-            <div id="currentPhoto" style="margin: 20px 0; padding: 20px; background: #f7fafc; border-radius: 8px;"></div>
+            <div id="currentPhoto" style="margin: 20px 0; padding: 20px; background: #f7fafc; border-radius: 8px;">
+                <!-- Текущий статус загрузки -->
+            </div>
             
             <button class="btn btn-danger" onclick="cancelUpload()">
-                ❌ Отменить
+                ❌ Отменить загрузку
             </button>
         </div>
 
         <!-- ШАГ 3: РЕЗУЛЬТАТЫ -->
         <div class="card hidden" id="step3">
-            <h2>3. Результаты</h2>
+            <h2>3. Результаты загрузки</h2>
             <div id="results"></div>
-            <button class="btn btn-primary" onclick="location.reload()">
+            <button class="btn btn-primary" onclick="location.reload()" style="margin-top: 20px;">
                 🔄 Новая загрузка
             </button>
         </div>
 
-        <!-- ЛОГ -->
+        <!-- ЛОГ ВЫПОЛНЕНИЯ -->
         <div class="card">
             <h3>📋 Лог выполнения</h3>
             <div class="log" id="log">
@@ -188,17 +205,24 @@
             photoFiles = {};
             const files = Array.from(e.target.files);
             files.forEach(file => {
+                // Сохраняем во всех регистрах для поиска
                 photoFiles[file.name] = file;
                 photoFiles[file.name.toLowerCase()] = file;
                 photoFiles[file.name.toUpperCase()] = file;
             });
             addLog(`✅ Загружено ${files.length} фотографий`, 'success');
             
+            // Показываем список фото
             let photoList = '<h4>📸 Фотографии:</h4><ul>';
+            let shown = new Set();
             let count = 0;
             for (let name in photoFiles) {
-                if (count++ > 10) break;
-                if (count === 1) photoList += `<li>${name}</li>`;
+                if (!shown.has(photoFiles[name].name)) {
+                    shown.add(photoFiles[name].name);
+                    if (count++ < 10) {
+                        photoList += `<li>${photoFiles[name].name}</li>`;
+                    }
+                }
             }
             if (files.length > 10) {
                 photoList += `<li>... и еще ${files.length - 10}</li>`;
@@ -275,6 +299,7 @@
                     addLog(`✅ Найдено ${totalRows} записей`, 'success');
                     addLog(`📋 Требуется файлов: ${data.required_count}`, 'info');
                     
+                    // Проверяем наличие всех файлов
                     const missing = [];
                     data.required_files.forEach(filename => {
                         if (!photoFiles[filename] && !photoFiles[filename.toLowerCase()]) {
@@ -289,10 +314,14 @@
                         addLog(`✅ Все файлы в наличии!`, 'success');
                     }
                     
+                    // Кнопка старта загрузки
                     const startBtn = document.createElement('button');
                     startBtn.className = 'btn btn-success';
                     startBtn.style.marginTop = '20px';
-                    startBtn.innerText = '🚀 Начать загрузку через Proxy';
+                    startBtn.style.width = '100%';
+                    startBtn.style.padding = '16px';
+                    startBtn.style.fontSize = '18px';
+                    startBtn.innerText = '🚀 Начать загрузку в VK';
                     startBtn.onclick = startUpload;
                     document.getElementById('step1').appendChild(startBtn);
                     
@@ -306,13 +335,13 @@
             }
         }
 
-        // ==================== ЗАГРУЗКА ЧЕРЕЗ ПРОКСИ ====================
+        // ==================== ЗАГРУЗКА В VK ====================
         async function startUpload() {
             document.getElementById('step1').classList.add('hidden');
             document.getElementById('step2').classList.remove('hidden');
             uploadActive = true;
             
-            addLog('🚀 Начало загрузки через Render Proxy...', 'success');
+            addLog('🚀 Начало загрузки...', 'success');
             
             for (let i = 0; i < totalRows; i++) {
                 if (!uploadActive) break;
@@ -329,35 +358,53 @@
             }
         }
 
-        // ==================== ОБРАБОТКА СТРОКИ ЧЕРЕЗ ПРОКСИ ====================
+        // ==================== ОБРАБОТКА СТРОКИ ====================
         async function processRow(rowIndex) {
             addLog(`📄 Строка ${rowIndex + 1}...`, 'info');
             
             try {
-                // 1. Получаем URL для загрузки
+                // 1. Получаем URL для загрузки и описание
                 const urlRes = await fetch(`/api/get-upload-urls/${sessionId}/${rowIndex}`);
                 const urlData = await urlRes.json();
                 
                 if (!urlData.success) throw new Error(urlData.error);
                 
-                // 2. Загружаем основное фото ЧЕРЕЗ ПРОКСИ
                 const mainPhoto = urlData.main_photo;
+                const description = urlData.description || '';  // ПОЛУЧАЕМ ОПИСАНИЕ
                 const mainFile = photoFiles[mainPhoto.filename] || 
                                photoFiles[mainPhoto.filename.toLowerCase()];
                 
+                // Показываем информацию о загрузке
                 document.getElementById('currentPhoto').innerHTML = `
-                    <strong>Загрузка:</strong> ${mainPhoto.filename}<br>
-                    <small>Через Render Proxy...</small>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <div style="font-size: 24px;">📷</div>
+                        <div style="flex: 1;">
+                            <strong style="font-size: 16px;">${mainPhoto.filename}</strong>
+                            ${description ? `
+                                <div class="description-preview">
+                                    <span style="color: #4299e1;">📝 Описание:</span> ${description}
+                                </div>
+                            ` : ''}
+                            <div style="color: #666; font-size: 14px; margin-top: 5px;">
+                                Загрузка через Render Proxy...
+                            </div>
+                        </div>
+                    </div>
                 `;
                 
                 if (mainFile) {
                     addLog(`   📤 Загрузка ${mainPhoto.filename}...`, 'info');
+                    if (description) {
+                        addLog(`   📝 Описание: ${description.substring(0, 50)}${description.length > 50 ? '...' : ''}`, 'info');
+                    }
                     
+                    // 2. Загружаем основное фото с описанием
                     const formData = new FormData();
                     formData.append('file', mainFile);
                     formData.append('session_id', sessionId);
                     formData.append('filename', mainPhoto.filename);
                     formData.append('upload_url', mainPhoto.upload_url);
+                    formData.append('description', description);  // ПЕРЕДАЕМ ОПИСАНИЕ
                     
                     const proxyRes = await fetch('/api/proxy/upload-album', {
                         method: 'POST',
@@ -369,7 +416,7 @@
                     if (!proxyData.success) throw new Error(proxyData.error);
                     
                     const mainResult = proxyData.photo;
-                    addLog(`   ✅ ${mainPhoto.filename} загружено`, 'success');
+                    addLog(`   ✅ ${mainPhoto.filename} загружено с описанием`, 'success');
                     
                     // 3. Загружаем фото для комментариев
                     const commentResults = [];
@@ -401,7 +448,7 @@
                             }
                         }
                         
-                        // 4. Создаем комментарий
+                        // 4. Создаем комментарий с фото
                         if (groupPhotos.length > 0) {
                             const attachments = groupPhotos.map(p => `photo${p.owner_id}_${p.id}`);
                             
@@ -423,7 +470,7 @@
                                     group: group.group,
                                     photos: groupPhotos
                                 });
-                                addLog(`   💬 Комментарий создан (${groupPhotos.length} фото)`, 'success');
+                                addLog(`   💬 Комментарий (${groupPhotos.length} фото)`, 'success');
                             }
                         }
                     }
@@ -475,23 +522,45 @@
                 document.getElementById('step3').classList.remove('hidden');
                 
                 let html = `
-                    <h3 style="color: #48bb78;">✅ Загрузка завершена!</h3>
-                    <p style="font-size: 1.2em; margin: 20px 0;">
-                        Обработано: ${report.statistics.processed_rows} из ${report.statistics.total_rows} строк<br>
-                        Успешно: ${report.statistics.successful_rows}<br>
-                        Ошибок: ${report.statistics.failed_rows}
-                    </p>
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 64px; color: #48bb78; margin-bottom: 20px;">✅</div>
+                        <h3 style="color: #2d3748; margin-bottom: 20px;">Загрузка успешно завершена!</h3>
+                        
+                        <div style="background: #f7fafc; border-radius: 12px; padding: 25px; margin: 20px 0;">
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                                <div>
+                                    <div style="font-size: 28px; font-weight: 700; color: #667eea;">${report.statistics.total_rows}</div>
+                                    <div style="color: #718096;">всего записей</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 28px; font-weight: 700; color: #48bb78;">${report.statistics.successful_rows}</div>
+                                    <div style="color: #718096;">успешно</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 28px; font-weight: 700; color: ${report.statistics.failed_rows > 0 ? '#fc8181' : '#a0aec0'};">${report.statistics.failed_rows}</div>
+                                    <div style="color: #718096;">с ошибками</div>
+                                </div>
+                            </div>
+                        </div>
                 `;
                 
                 if (report.files.missing_count > 0) {
-                    html += `<p style="color: #c05621;">⚠️ Отсутствовало файлов: ${report.files.missing_count}</p>`;
-                    if (report.files.missing_files.length > 0) {
-                        html += `<p><small>${report.files.missing_files.slice(0, 5).join(', ')}</small></p>`;
-                    }
+                    html += `
+                        <div style="background: #fff5f5; border-radius: 8px; padding: 15px; margin: 15px 0;">
+                            <span style="color: #c53030;">⚠️ Отсутствовало файлов: ${report.files.missing_count}</span>
+                            ${report.files.missing_files.length > 0 ? `
+                                <div style="color: #718096; font-size: 14px; margin-top: 10px;">
+                                    ${report.files.missing_files.slice(0, 5).join(', ')}
+                                    ${report.files.missing_files.length > 5 ? `... и еще ${report.files.missing_files.length - 5}` : ''}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
                 }
                 
+                html += `</div>`;
                 document.getElementById('results').innerHTML = html;
-                addLog('✅ Загрузка завершена!', 'success');
+                addLog('✅ Загрузка полностью завершена!', 'success');
             }
         }
 
@@ -501,7 +570,7 @@
             if (sessionId) {
                 await fetch(`/api/cancel/${sessionId}`, { method: 'POST' });
             }
-            addLog('⏸️ Загрузка отменена', 'warning');
+            addLog('⏸️ Загрузка отменена пользователем', 'warning');
             location.reload();
         }
     </script>

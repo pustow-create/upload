@@ -52,6 +52,11 @@ def parse_config(content):
 def parse_csv(content):
     """Парсинг CSV с поддержкой UTF-8 и кириллицы - ИСПРАВЛЕНО"""
     if isinstance(content, bytes):
+        # ПРИНУДИТЕЛЬНО декодируем как UTF-8
+        content = content.decode('utf-8', errors='replace')
+        print(f"📄 Декодировано UTF-8, длина: {len(content)}")
+   
+    if isinstance(content, bytes):
         content = content.decode('utf-8-sig', errors='replace')
     
     lines = []

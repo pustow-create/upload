@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY', 'proxy-secret-key')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB максимум
-app.config['JSON_AS_ASCII'] = False  # Важно для кириллицы!
+app.config['JSON_AS_ASCII'] = False  # ВАЖНО: для кириллицы!
 
 VK_API_VERSION = "5.199"
 sessions = {}
@@ -118,6 +118,7 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
         'album_id': album_id,
     }
     
+    # ВАЖНО: Добавляем описание
     if description and description.strip():
         params['caption'] = description.strip()
         print(f"  📝 Отправляем описание: {description[:50]}...")
@@ -125,7 +126,7 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    # ВАЖНО: Используем JSON для кириллицы
+    # ВАЖНО: Используем JSON для сохранения кириллицы!
     headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
@@ -176,19 +177,19 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
     
     # ВАЖНО: owner_id должен быть отрицательным для группы
     if group_id:
-        owner_id = -abs(int(group_id))  # Принудительно ставим ID группы
+        owner_id = -abs(int(group_id))
     
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
-        'owner_id': owner_id,  # Отрицательное число = группа
+        'owner_id': owner_id,
         'photo_id': photo_id,
         'message': '',
         'attachments': ','.join(attachments),
-        'from_group': 1  # КЛЮЧЕВОЕ! 1 = от имени группы, 0 = от пользователя
+        'from_group': 1  # КЛЮЧЕВОЕ! 1 = от имени группы
     }
     
-    print(f"  💬 Создание комментария от имени группы, owner_id={owner_id}, from_group=1")
+    print(f"  💬 Комментарий от группы, owner_id={owner_id}, from_group=1")
     
     headers = {'Content-Type': 'application/json'}
     
@@ -203,10 +204,10 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
     
     if 'error' in result:
         error_msg = result['error'].get('error_msg', 'Unknown error')
-        print(f"  ❌ Ошибка создания комментария: {error_msg}")
+        print(f"  ❌ Ошибка: {error_msg}")
         raise Exception(f"VK Error: {error_msg}")
     
-    print(f"  ✅ Комментарий создан, ID: {result['response'].get('comment_id')}")
+    print(f"  ✅ Комментарий создан: {result['response'].get('comment_id')}")
     return result['response']
 
 def proxy_get_upload_server(access_token, album_id, group_id=None):
@@ -259,25 +260,19 @@ def proxy_get_wall_upload_server(access_token, group_id=None):
 # ==================== ОСНОВНЫЕ МАРШРУТЫ ====================
 @app.route('/')
 def index():
-    """Главная страница приложения"""
-    try:
-        return render_template('index.html')
-    except Exception as e:
-        return f"Ошибка загрузки шаблона: {str(e)}", 500
+    """Главная страница"""
+    return render_template('index.html')
 
 @app.route('/health')
 @app.route('/api/health')
 def health():
-    """Проверка работоспособности"""
-    return jsonify({
-        'status': 'ok',
-        'time': time.time(),
-        'service': 'vk-photo-uploader'
-    })
+    """Health check"""
+    return jsonify({'status': 'ok', 'time': time.time()})
 
 # ==================== ТЕСТ VK ====================
 @app.route('/api/test-vk', methods=['POST'])
 def test_vk():
+    """Тест подключения к VK"""
     try:
         config_content = None
         for file in request.files.getlist('files'):
@@ -414,6 +409,7 @@ def get_upload_urls(session_id, row_index):
                     )
                 })
         
+        # ВАЖНО: Передаем описание в браузер!
         return jsonify({
             'success': True,
             'row_index': row_index,
@@ -431,15 +427,12 @@ def get_upload_urls(session_id, row_index):
 # ==================== ПРОКСИ-ЗАГРУЗКА В АЛЬБОМ ====================
 @app.route('/api/proxy/upload-album', methods=['POST'])
 def proxy_upload_album():
+    """Прокси-загрузка фото в альбом"""
     try:
         session_id = request.form.get('session_id')
         filename = request.form.get('filename')
         upload_url = request.form.get('upload_url')
         description = request.form.get('description', '')
-        
-        if description:
-            description = description.strip()
-            print(f"📝 Получено описание: {description}")
         
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'Нет файла'}), 400
@@ -453,8 +446,10 @@ def proxy_upload_album():
         
         config = session_data.get('config', {})
         
+        # 1. Загружаем на сервер VK
         upload_result = proxy_upload_to_album(upload_url, file_data, filename)
         
+        # 2. Сохраняем в альбоме с описанием
         save_result = proxy_save_album_photo(
             config['ACCESS_TOKEN'],
             upload_result['server'],
@@ -462,7 +457,7 @@ def proxy_upload_album():
             upload_result['hash'],
             config['ALBUM_ID'],
             config.get('GROUP_ID'),
-            description
+            description  # ВАЖНО: передаем описание!
         )
         
         return jsonify({
@@ -477,6 +472,7 @@ def proxy_upload_album():
 # ==================== ПРОКСИ-ЗАГРУЗКА НА СТЕНУ ====================
 @app.route('/api/proxy/upload-wall', methods=['POST'])
 def proxy_upload_wall():
+    """Прокси-загрузка фото на стену"""
     try:
         session_id = request.form.get('session_id')
         filename = request.form.get('filename')
@@ -530,7 +526,7 @@ def proxy_create_comment_endpoint():
         config = session_data.get('config', {})
         group_id = config.get('GROUP_ID')
         
-        # ВАЖНО: Используем owner_id от группы
+        # ВАЖНО: owner_id должен быть отрицательным для группы
         if group_id:
             owner_id = -abs(int(group_id))
         
@@ -539,7 +535,7 @@ def proxy_create_comment_endpoint():
             owner_id,
             photo_id,
             attachments,
-            group_id  # Передаем group_id для from_group=1
+            group_id
         )
         
         return jsonify({
@@ -644,21 +640,10 @@ def cancel(session_id):
 
 # ==================== ЗАПУСК ====================
 if __name__ == '__main__':
-    # Создаем необходимые папки
     os.makedirs('static', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
-    
-    # Проверяем наличие index.html
-    template_path = os.path.join('templates', 'index.html')
-    if not os.path.exists(template_path):
-        print(f"⚠️ ВНИМАНИЕ: Файл {template_path} не найден!")
-        print("Создайте файл templates/index.html для работы приложения")
-    else:
-        print(f"✅ Шаблон {template_path} найден")
-    
     port = int(os.environ.get('PORT', 5000))
     print(f"🚀 Запуск сервера на порту {port}")
-    print(f"📁 Главная страница: http://localhost:{port}/")
-    print(f"❤️ Health check: http://localhost:{port}/health")
-    
+    print(f"📁 Главная: http://localhost:{port}/")
+    print(f"❤️ Health: http://localhost:{port}/health")
     app.run(host='0.0.0.0', port=port, debug=False)

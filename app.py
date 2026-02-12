@@ -12,7 +12,7 @@ from werkzeug.utils import secure_filename
 # ==================== НАСТРОЙКА ====================
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY', 'proxy-secret-key')
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB максимум (временная буферизация)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB максимум
 
 VK_API_VERSION = "5.199"
 sessions = {}
@@ -33,11 +33,12 @@ def delete_session(session_id):
         if session_id in sessions:
             del sessions[session_id]
 
-# ==================== ПАРСИНГ ====================
+# ==================== ПАРСИНГ КОНФИГА ====================
 def parse_config(content):
     config = {}
     if isinstance(content, bytes):
         content = content.decode('utf-8', errors='ignore')
+    
     for line in content.split('\n'):
         line = line.strip()
         if not line or line.startswith('#'):
@@ -45,39 +46,51 @@ def parse_config(content):
         if '=' in line:
             key, value = line.split('=', 1)
             config[key.strip().upper()] = value.strip()
+    
     return config
 
+# ==================== ПАРСИНГ CSV ====================
 def parse_csv(content):
+    """Парсинг CSV с описанием из 2 столбца"""
     if isinstance(content, bytes):
         content = content.decode('utf-8-sig', errors='ignore')
     
     lines = [line.strip() for line in content.split('\n') if line.strip()]
     
+    # Определяем разделитель
     delimiter = '|'
     if lines and lines[0].startswith('sep='):
         delimiter = lines[0].split('=')[1].strip()
         lines = lines[1:]
     
+    # Пропускаем заголовок
     if lines and ('Файл изображения' in lines[0] or 'файл' in lines[0].lower()):
         lines = lines[1:]
     
     csv_data = []
-    for line in lines:
+    for i, line in enumerate(lines):
         if not line.strip():
             continue
+        
+        # Разбиваем по разделителю
         parts = [p.strip().strip('"') for p in line.split(delimiter)]
+        
         if len(parts) >= 2:
             main_photo = parts[0].strip()
-            description = parts[1].strip() if len(parts) > 1 else ''
+            description = parts[1].strip() if len(parts) > 1 else ''  # ОПИСАНИЕ ИЗ 2 СТОЛБЦА
+            
             comment_photos = []
             if len(parts) > 2 and parts[2].strip():
                 comment_photos = [p.strip() for p in parts[2].split(';') if p.strip()]
+            
             if main_photo:
                 csv_data.append({
                     'main_photo': main_photo,
-                    'description': description,
+                    'description': description,  # СОХРАНЯЕМ ОПИСАНИЕ
                     'comment_photos': comment_photos
                 })
+                print(f"CSV строка {i+1}: {main_photo} - {description[:30]}...")
+    
     return csv_data
 
 # ==================== ПРОКСИ-ФУНКЦИИ ДЛЯ VK ====================
@@ -95,15 +108,16 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
     response.raise_for_status()
     return response.json()
 
-def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None):
-    """Сохранение фото в альбоме"""
+def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
+    """Сохранить фото в альбоме с ОПИСАНИЕМ"""
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
         'server': server,
         'photos_list': photos_list,
         'hash': hash_value,
-        'album_id': album_id
+        'album_id': album_id,
+        'caption': description  # ДОБАВЛЯЕМ ОПИСАНИЕ К ФОТО!
     }
     if group_id:
         params['group_id'] = abs(int(group_id))
@@ -116,7 +130,7 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     return result['response']
 
 def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None):
-    """Сохранение фото для стены"""
+    """Сохранить фото для стены"""
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -331,6 +345,7 @@ def get_upload_urls(session_id, row_index):
         return jsonify({
             'success': True,
             'row_index': row_index,
+            'description': row['description'],  # ПЕРЕДАЕМ ОПИСАНИЕ В БРАУЗЕР
             'main_photo': {
                 'filename': row['main_photo'],
                 'upload_url': album_url
@@ -349,6 +364,7 @@ def proxy_upload_album():
         session_id = request.form.get('session_id')
         filename = request.form.get('filename')
         upload_url = request.form.get('upload_url')
+        description = request.form.get('description', '')  # ПОЛУЧАЕМ ОПИСАНИЕ
         
         if 'file' not in request.files:
             return jsonify({'success': False, 'error': 'Нет файла'}), 400
@@ -356,7 +372,6 @@ def proxy_upload_album():
         file = request.files['file']
         file_data = file.read()
         
-        # Получаем конфиг из сессии
         session_data = get_session(session_id)
         if not session_data:
             return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
@@ -366,14 +381,15 @@ def proxy_upload_album():
         # 1. Загружаем на сервер VK
         upload_result = proxy_upload_to_album(upload_url, file_data, filename)
         
-        # 2. Сохраняем в альбоме
+        # 2. Сохраняем в альбоме с ОПИСАНИЕМ
         save_result = proxy_save_album_photo(
             config['ACCESS_TOKEN'],
             upload_result['server'],
             upload_result['photos_list'],
             upload_result['hash'],
             config['ALBUM_ID'],
-            config.get('GROUP_ID')
+            config.get('GROUP_ID'),
+            description  # ПЕРЕДАЕМ ОПИСАНИЕ В VK
         )
         
         return jsonify({

@@ -104,35 +104,42 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
     return response.json()
 
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
-    """Сохранить фото в альбоме с описанием - РАБОЧАЯ ВЕРСИЯ"""
+    """Сохранить фото в альбоме с описанием - ТОЧНАЯ КОПИЯ РАБОЧЕГО КОДА"""
     
-    # Параметры для сохранения фото
+    # ШАГ 3: Сохраняем фото в альбоме с описанием (ПОЛНАЯ КОПИЯ ВАШЕГО РАБОЧЕГО КОДА)
     save_params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
+        'album_id': album_id,
         'server': server,
         'photos_list': photos_list,
         'hash': hash_value,
-        'album_id': album_id,
     }
     
     if group_id:
         save_params['group_id'] = abs(int(group_id))
     
-    # Сохраняем фото с описанием - ВСЕ В ОДНОМ ЗАПРОСЕ!
+    # Добавляем описание - ТОЧНО КАК В ВАШЕМ РАБОЧЕМ КОДЕ
     if description and description.strip():
         save_params['caption'] = description.strip()
         print(f"  📝 Описание: {description[:50]}...")
     
-    # Отправляем запрос
+    # Отправляем запрос - ТОЧНО КАК В ВАШЕМ РАБОЧЕМ КОДЕ
     save_response = requests.post(
         'https://api.vk.com/method/photos.save',
-        data=save_params,  # Важно: data, не json!
+        data=save_params,  # data, не json!
         timeout=30
     )
     
-    save_response.raise_for_status()
-    save_result = save_response.json()
+    if save_response.status_code != 200:
+        raise Exception(f"Ошибка сохранения фото: HTTP {save_response.status_code}")
+        
+    save_data = save_response.json()
+    
+    if 'error' in save_data:
+        raise Exception(f"VK Error: {save_data['error']['error_msg']}")
+    
+    return save_data['response']
     
     if 'error' in save_result:
         error_msg = save_result['error'].get('error_msg', 'Unknown error')

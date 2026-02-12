@@ -4,34 +4,21 @@ import json
 import requests
 import time
 import threading
+import io
 from datetime import timedelta
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 
-# ==================== НАСТРОЙКА ПРИЛОЖЕНИЯ ====================
+# ==================== НАСТРОЙКА ====================
 app = Flask(__name__, static_folder='static', template_folder='templates')
-app.secret_key = os.environ.get('SECRET_KEY', 'local-dev-secret-key')
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=1)
+app.secret_key = os.environ.get('SECRET_KEY', 'proxy-secret-key')
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB максимум (временная буферизация)
 
-# ==================== CORS ====================
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Session-ID'
-    return response
-
-@app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
-@app.route('/<path:path>', methods=['OPTIONS'])
-def handle_options(path):
-    return '', 200
-
-# ==================== КОНСТАНТЫ ====================
 VK_API_VERSION = "5.199"
 sessions = {}
 session_lock = threading.Lock()
 
-# ==================== РАБОТА С СЕССИЯМИ ====================
+# ==================== ХРАНЕНИЕ СЕССИЙ ====================
 def get_session(session_id):
     with session_lock:
         return sessions.get(session_id, {})
@@ -46,13 +33,11 @@ def delete_session(session_id):
         if session_id in sessions:
             del sessions[session_id]
 
-# ==================== ПАРСИНГ КОНФИГА ====================
+# ==================== ПАРСИНГ ====================
 def parse_config(content):
-    """Парсинг config.txt - только текст, без файлов"""
     config = {}
     if isinstance(content, bytes):
         content = content.decode('utf-8', errors='ignore')
-    
     for line in content.split('\n'):
         line = line.strip()
         if not line or line.startswith('#'):
@@ -60,24 +45,19 @@ def parse_config(content):
         if '=' in line:
             key, value = line.split('=', 1)
             config[key.strip().upper()] = value.strip()
-    
     return config
 
-# ==================== ПАРСИНГ CSV ====================
 def parse_csv(content):
-    """Парсинг CSV - только текст, без файлов"""
     if isinstance(content, bytes):
         content = content.decode('utf-8-sig', errors='ignore')
     
     lines = [line.strip() for line in content.split('\n') if line.strip()]
     
-    # Определяем разделитель
     delimiter = '|'
     if lines and lines[0].startswith('sep='):
         delimiter = lines[0].split('=')[1].strip()
         lines = lines[1:]
     
-    # Пропускаем заголовок
     if lines and ('Файл изображения' in lines[0] or 'файл' in lines[0].lower()):
         lines = lines[1:]
     
@@ -85,107 +65,129 @@ def parse_csv(content):
     for line in lines:
         if not line.strip():
             continue
-        
         parts = [p.strip().strip('"') for p in line.split(delimiter)]
-        
         if len(parts) >= 2:
             main_photo = parts[0].strip()
             description = parts[1].strip() if len(parts) > 1 else ''
-            
             comment_photos = []
             if len(parts) > 2 and parts[2].strip():
                 comment_photos = [p.strip() for p in parts[2].split(';') if p.strip()]
-            
             if main_photo:
                 csv_data.append({
                     'main_photo': main_photo,
                     'description': description,
                     'comment_photos': comment_photos
                 })
-    
     return csv_data
 
-# ==================== VK API - ТОЛЬКО ЗАПРОСЫ, БЕЗ ФАЙЛОВ ====================
-class VKAPI:
-    def __init__(self, access_token, group_id=None):
-        self.access_token = access_token
-        self.group_id = group_id
-        self.api_url = "https://api.vk.com/method/"
-    
-    def call(self, method, params):
-        """Вызов VK API"""
-        params.update({
-            'access_token': self.access_token,
-            'v': VK_API_VERSION
-        })
-        
-        try:
-            response = requests.post(f"{self.api_url}{method}", data=params, timeout=30)
-            response.raise_for_status()
-            result = response.json()
-            
-            if 'error' in result:
-                raise Exception(f"VK Error: {result['error'].get('error_msg', 'Unknown')}")
-            
-            return result['response']
-        except Exception as e:
-            raise Exception(f"VK API Error: {str(e)}")
-    
-    def get_album_upload_url(self, album_id):
-        """Получить URL для загрузки в альбом"""
-        params = {'album_id': album_id}
-        if self.group_id:
-            params['group_id'] = abs(int(self.group_id))
-        result = self.call('photos.getUploadServer', params)
-        return result['upload_url']
-    
-    def get_wall_upload_url(self):
-        """Получить URL для загрузки на стену"""
-        params = {}
-        if self.group_id:
-            params['group_id'] = abs(int(self.group_id))
-        result = self.call('photos.getWallUploadServer', params)
-        return result['upload_url']
-    
-    def save_album_photo(self, server, photos_list, hash_value, album_id):
-        """Сохранить фото в альбоме"""
-        params = {
-            'server': server,
-            'photos_list': photos_list,
-            'hash': hash_value,
-            'album_id': album_id
-        }
-        if self.group_id:
-            params['group_id'] = abs(int(self.group_id))
-        return self.call('photos.save', params)
-    
-    def save_wall_photo(self, server, photo, hash_value):
-        """Сохранить фото для стены"""
-        params = {
-            'server': server,
-            'photo': photo,
-            'hash': hash_value
-        }
-        if self.group_id:
-            params['group_id'] = abs(int(self.group_id))
-        return self.call('photos.saveWallPhoto', params)
-    
-    def create_comment(self, owner_id, photo_id, attachments):
-        """Создать комментарий к фото"""
-        params = {
-            'owner_id': owner_id,
-            'photo_id': photo_id,
-            'message': '',
-            'attachments': ','.join(attachments)
-        }
-        return self.call('photos.createComment', params)
-    
-    def test_token(self):
-        """Проверка токена"""
-        result = self.call('users.get', {})
-        return result[0] if result else None
+# ==================== ПРОКСИ-ФУНКЦИИ ДЛЯ VK ====================
+def proxy_upload_to_album(upload_url, file_data, filename):
+    """Прокси-загрузка фото в альбом VK"""
+    files = {'file1': (filename, file_data, 'image/jpeg')}
+    response = requests.post(upload_url, files=files, timeout=60)
+    response.raise_for_status()
+    return response.json()
 
-# ==================== МАРШРУТЫ ====================
+def proxy_upload_to_wall(upload_url, file_data, filename):
+    """Прокси-загрузка фото на стену VK"""
+    files = {'photo': (filename, file_data, 'image/jpeg')}
+    response = requests.post(upload_url, files=files, timeout=60)
+    response.raise_for_status()
+    return response.json()
+
+def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None):
+    """Сохранение фото в альбоме"""
+    params = {
+        'access_token': access_token,
+        'v': VK_API_VERSION,
+        'server': server,
+        'photos_list': photos_list,
+        'hash': hash_value,
+        'album_id': album_id
+    }
+    if group_id:
+        params['group_id'] = abs(int(group_id))
+    
+    response = requests.post('https://api.vk.com/method/photos.save', data=params, timeout=30)
+    response.raise_for_status()
+    result = response.json()
+    if 'error' in result:
+        raise Exception(f"VK Error: {result['error']['error_msg']}")
+    return result['response']
+
+def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None):
+    """Сохранение фото для стены"""
+    params = {
+        'access_token': access_token,
+        'v': VK_API_VERSION,
+        'server': server,
+        'photo': photo,
+        'hash': hash_value
+    }
+    if group_id:
+        params['group_id'] = abs(int(group_id))
+    
+    response = requests.post('https://api.vk.com/method/photos.saveWallPhoto', data=params, timeout=30)
+    response.raise_for_status()
+    result = response.json()
+    if 'error' in result:
+        raise Exception(f"VK Error: {result['error']['error_msg']}")
+    return result['response']
+
+def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id=None):
+    """Создание комментария"""
+    params = {
+        'access_token': access_token,
+        'v': VK_API_VERSION,
+        'owner_id': owner_id,
+        'photo_id': photo_id,
+        'message': '',
+        'attachments': ','.join(attachments)
+    }
+    if group_id:
+        params['group_id'] = abs(int(group_id))
+    
+    response = requests.post('https://api.vk.com/method/photos.createComment', data=params, timeout=30)
+    response.raise_for_status()
+    result = response.json()
+    if 'error' in result:
+        raise Exception(f"VK Error: {result['error']['error_msg']}")
+    return result['response']
+
+def proxy_get_upload_server(access_token, album_id, group_id=None):
+    """Получить URL для загрузки в альбом"""
+    params = {
+        'access_token': access_token,
+        'v': VK_API_VERSION,
+        'album_id': album_id
+    }
+    if group_id:
+        params['group_id'] = abs(int(group_id))
+    
+    response = requests.post('https://api.vk.com/method/photos.getUploadServer', data=params, timeout=30)
+    response.raise_for_status()
+    result = response.json()
+    if 'error' in result:
+        raise Exception(f"VK Error: {result['error']['error_msg']}")
+    return result['response']['upload_url']
+
+def proxy_get_wall_upload_server(access_token, group_id=None):
+    """Получить URL для загрузки на стену"""
+    params = {
+        'access_token': access_token,
+        'v': VK_API_VERSION
+    }
+    if group_id:
+        params['group_id'] = abs(int(group_id))
+    
+    response = requests.post('https://api.vk.com/method/photos.getWallUploadServer', data=params, timeout=30)
+    response.raise_for_status()
+    result = response.json()
+    if 'error' in result:
+        raise Exception(f"VK Error: {result['error']['error_msg']}")
+    return result['response']['upload_url']
+
+# ==================== API ENDPOINTS ====================
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -194,57 +196,41 @@ def index():
 def health():
     return jsonify({'status': 'ok'})
 
-# ==================== 1. АНАЛИЗ CSV (ТОЛЬКО ТЕКСТ) ====================
+# ==================== 1. АНАЛИЗ CSV ====================
 @app.route('/api/analyze', methods=['POST'])
 def analyze():
-    """Анализ CSV файла - только текст, файлы не загружаются"""
     try:
-        # Получаем только текстовые файлы (config.csv, .csv)
         config_content = None
         csv_content = None
         
         for file in request.files.getlist('files'):
             filename = file.filename.lower()
-            
-            # config.txt
             if filename == 'config.txt' or (filename.endswith('.txt') and 'config' in filename):
                 config_content = file.read()
-                print(f"✅ Config загружен: {file.filename}")
-            
-            # CSV файл
             elif filename.endswith('.csv'):
                 csv_content = file.read()
-                print(f"✅ CSV загружен: {file.filename}")
         
         if not config_content:
             return jsonify({'success': False, 'error': 'Не найден config.txt'}), 400
-        
         if not csv_content:
             return jsonify({'success': False, 'error': 'Не найден CSV файл'}), 400
         
-        # Парсим конфиг
         config = parse_config(config_content)
-        
         if 'ACCESS_TOKEN' not in config:
-            return jsonify({'success': False, 'error': 'В config.txt нет ACCESS_TOKEN'}), 400
-        
+            return jsonify({'success': False, 'error': 'Нет ACCESS_TOKEN'}), 400
         if 'ALBUM_ID' not in config:
-            return jsonify({'success': False, 'error': 'В config.txt нет ALBUM_ID'}), 400
+            return jsonify({'success': False, 'error': 'Нет ALBUM_ID'}), 400
         
-        # Парсим CSV
         csv_data = parse_csv(csv_content)
-        
         if not csv_data:
-            return jsonify({'success': False, 'error': 'CSV файл пуст'}), 400
+            return jsonify({'success': False, 'error': 'CSV пуст'}), 400
         
-        # Собираем список всех нужных файлов
         required_files = set()
         for row in csv_data:
             required_files.add(row['main_photo'])
             for photo in row['comment_photos']:
                 required_files.add(photo)
         
-        # Создаем сессию
         session_id = str(int(time.time() * 1000))
         session_data = {
             'config': config,
@@ -255,7 +241,6 @@ def analyze():
             'results': [],
             'start_time': time.time()
         }
-        
         set_session(session_id, session_data)
         
         return jsonify({
@@ -267,16 +252,13 @@ def analyze():
         })
         
     except Exception as e:
-        print(f"❌ Ошибка анализа: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ==================== 2. ТЕСТ VK ====================
 @app.route('/api/test-vk', methods=['POST'])
 def test_vk():
-    """Тест подключения к VK"""
     try:
         config_content = None
-        
         for file in request.files.getlist('files'):
             filename = file.filename.lower()
             if filename == 'config.txt' or (filename.endswith('.txt') and 'config' in filename):
@@ -288,16 +270,22 @@ def test_vk():
         
         config = parse_config(config_content)
         token = config.get('ACCESS_TOKEN')
-        
         if not token:
             return jsonify({'success': False, 'error': 'Нет ACCESS_TOKEN'}), 400
         
-        vk = VKAPI(token, config.get('GROUP_ID'))
-        user = vk.test_token()
+        params = {
+            'access_token': token,
+            'v': VK_API_VERSION
+        }
+        response = requests.post('https://api.vk.com/method/users.get', data=params, timeout=10)
+        result = response.json()
+        
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']['error_msg']}), 400
         
         return jsonify({
             'success': True,
-            'user': user
+            'user': result['response'][0]
         })
         
     except Exception as e:
@@ -306,7 +294,6 @@ def test_vk():
 # ==================== 3. ПОЛУЧИТЬ URL ДЛЯ ЗАГРУЗКИ ====================
 @app.route('/api/get-upload-urls/<session_id>/<int:row_index>', methods=['GET'])
 def get_upload_urls(session_id, row_index):
-    """Получить URL для загрузки фото в VK"""
     try:
         session_data = get_session(session_id)
         if not session_data:
@@ -319,17 +306,15 @@ def get_upload_urls(session_id, row_index):
         row = csv_data[row_index]
         config = session_data.get('config', {})
         
-        vk = VKAPI(config['ACCESS_TOKEN'], config.get('GROUP_ID'))
+        album_url = proxy_get_upload_server(
+            config['ACCESS_TOKEN'], 
+            config['ALBUM_ID'], 
+            config.get('GROUP_ID')
+        )
         
-        # 1. URL для основного фото
-        album_url = vk.get_album_upload_url(config['ALBUM_ID'])
-        
-        # 2. URL для фото в комментариях
         comment_urls = []
         comment_photos = row['comment_photos']
-        
         if comment_photos:
-            # Разбиваем на группы по 2 фото
             groups = []
             for i in range(0, len(comment_photos), 2):
                 groups.append(comment_photos[i:i+2])
@@ -337,7 +322,10 @@ def get_upload_urls(session_id, row_index):
             for group in groups:
                 comment_urls.append({
                     'group': group,
-                    'upload_url': vk.get_wall_upload_url()
+                    'upload_url': proxy_get_wall_upload_server(
+                        config['ACCESS_TOKEN'], 
+                        config.get('GROUP_ID')
+                    )
                 })
         
         return jsonify({
@@ -353,10 +341,124 @@ def get_upload_urls(session_id, row_index):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ==================== 4. СОХРАНИТЬ РЕЗУЛЬТАТ ЗАГРУЗКИ ====================
+# ==================== 4. ПРОКСИ-ЗАГРУЗКА В АЛЬБОМ ====================
+@app.route('/api/proxy/upload-album', methods=['POST'])
+def proxy_upload_album():
+    """Прокси-эндпоинт: браузер -> Render -> VK -> Render -> браузер"""
+    try:
+        session_id = request.form.get('session_id')
+        filename = request.form.get('filename')
+        upload_url = request.form.get('upload_url')
+        
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'Нет файла'}), 400
+        
+        file = request.files['file']
+        file_data = file.read()
+        
+        # Получаем конфиг из сессии
+        session_data = get_session(session_id)
+        if not session_data:
+            return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
+        
+        config = session_data.get('config', {})
+        
+        # 1. Загружаем на сервер VK
+        upload_result = proxy_upload_to_album(upload_url, file_data, filename)
+        
+        # 2. Сохраняем в альбоме
+        save_result = proxy_save_album_photo(
+            config['ACCESS_TOKEN'],
+            upload_result['server'],
+            upload_result['photos_list'],
+            upload_result['hash'],
+            config['ALBUM_ID'],
+            config.get('GROUP_ID')
+        )
+        
+        return jsonify({
+            'success': True,
+            'photo': save_result[0]
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ==================== 5. ПРОКСИ-ЗАГРУЗКА НА СТЕНУ ====================
+@app.route('/api/proxy/upload-wall', methods=['POST'])
+def proxy_upload_wall():
+    """Прокси-эндпоинт для загрузки фото на стену"""
+    try:
+        session_id = request.form.get('session_id')
+        filename = request.form.get('filename')
+        upload_url = request.form.get('upload_url')
+        
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'Нет файла'}), 400
+        
+        file = request.files['file']
+        file_data = file.read()
+        
+        session_data = get_session(session_id)
+        if not session_data:
+            return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
+        
+        config = session_data.get('config', {})
+        
+        upload_result = proxy_upload_to_wall(upload_url, file_data, filename)
+        
+        save_result = proxy_save_wall_photo(
+            config['ACCESS_TOKEN'],
+            upload_result['server'],
+            upload_result['photo'],
+            upload_result['hash'],
+            config.get('GROUP_ID')
+        )
+        
+        return jsonify({
+            'success': True,
+            'photo': save_result[0]
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ==================== 6. ПРОКСИ-СОЗДАНИЕ КОММЕНТАРИЯ ====================
+@app.route('/api/proxy/create-comment', methods=['POST'])
+def proxy_create_comment_endpoint():
+    """Прокси-эндпоинт для создания комментария"""
+    try:
+        data = request.json
+        session_id = data.get('session_id')
+        owner_id = data.get('owner_id')
+        photo_id = data.get('photo_id')
+        attachments = data.get('attachments', [])
+        
+        session_data = get_session(session_id)
+        if not session_data:
+            return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
+        
+        config = session_data.get('config', {})
+        
+        result = proxy_create_comment(
+            config['ACCESS_TOKEN'],
+            owner_id,
+            photo_id,
+            attachments,
+            config.get('GROUP_ID')
+        )
+        
+        return jsonify({
+            'success': True,
+            'comment_id': result.get('comment_id')
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ==================== 7. СОХРАНИТЬ РЕЗУЛЬТАТ ====================
 @app.route('/api/save-result', methods=['POST'])
 def save_result():
-    """Сохранить результат загрузки от браузера"""
     try:
         data = request.json
         session_id = data.get('session_id')
@@ -394,10 +496,9 @@ def save_result():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ==================== 5. ФИНАЛЬНЫЙ ОТЧЕТ ====================
+# ==================== 8. ФИНАЛЬНЫЙ ОТЧЕТ ====================
 @app.route('/api/finalize/<session_id>', methods=['GET'])
 def finalize(session_id):
-    """Получить финальный отчет"""
     try:
         session_data = get_session(session_id)
         if not session_data:
@@ -407,10 +508,8 @@ def finalize(session_id):
         csv_data = session_data.get('csv_data', [])
         required_files = session_data.get('required_files', [])
         
-        # Статистика
         successful = sum(1 for r in results if r.get('success', False))
         
-        # Какие файлы реально загружены
         uploaded_files = set()
         for result in results:
             if result.get('main_photo_result'):
@@ -434,8 +533,7 @@ def finalize(session_id):
                 'uploaded_count': len(uploaded_files),
                 'missing_count': len(missing_files),
                 'missing_files': list(missing_files)[:50]
-            },
-            'errors': [e for r in results for e in r.get('errors', [])][:50]
+            }
         }
         
         return jsonify({'success': True, 'report': report})
@@ -443,7 +541,7 @@ def finalize(session_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-# ==================== 6. ОТМЕНА ====================
+# ==================== 9. ОТМЕНА ====================
 @app.route('/api/cancel/<session_id>', methods=['POST'])
 def cancel(session_id):
     delete_session(session_id)

@@ -119,11 +119,18 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     if group_id:
         data['group_id'] = abs(int(group_id))
     
-    # ОПИСАНИЕ - отдельно как файл в CP1251
+    # ОПИСАНИЕ - конвертируем из UTF-8 в CP1251
     files = {}
     if description and description.strip():
-        files['caption'] = ('caption.txt', description.strip().encode('cp1251'), 'text/plain')
-        print(f"  📝 Описание: {description[:50]}... (CP1251)")
+        try:
+            # Пробуем конвертировать из UTF-8 в CP1251
+            caption_bytes = description.strip().encode('cp1251', errors='replace')
+            files['caption'] = ('caption.txt', caption_bytes, 'text/plain')
+            print(f"  📝 Описание: {description[:50]}... (конвертировано в CP1251)")
+        except Exception as e:
+            print(f"  ⚠️ Ошибка конвертации описания: {e}")
+            # Если не получается, отправляем как есть
+            files['caption'] = ('caption.txt', description.strip().encode('utf-8'), 'text/plain')
     
     # Отправляем с files если есть описание
     if files:

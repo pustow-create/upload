@@ -122,8 +122,8 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    # ТОЛЬКО ЗДЕСЬ МЕНЯЕМ НА JSON ДЛЯ КИРИЛЛИЦЫ
-    response = requests.post('https://api.vk.com/method/photos.save', json=params, timeout=30)
+    # ИСПРАВЛЕНИЕ: меняем json=params на data=params
+    response = requests.post('https://api.vk.com/method/photos.save', data=params, timeout=30)
     response.raise_for_status()
     result = response.json()
     

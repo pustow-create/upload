@@ -5,37 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VK Photo Uploader</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            line-height: 1.6;
-            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        
         .container {
             max-width: 1200px;
             margin: 0 auto;
         }
-        
         .header {
             text-align: center;
-            margin-bottom: 30px;
             color: white;
+            margin-bottom: 30px;
         }
-        
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-        }
-        
         .card {
             background: white;
             border-radius: 12px;
@@ -43,228 +28,62 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
-        
-        .step {
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .step:last-child {
-            border-bottom: none;
-        }
-        
-        .step-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        .step-number {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            margin-right: 15px;
-        }
-        
         .upload-area {
             border: 3px dashed #667eea;
             border-radius: 12px;
             padding: 40px;
             text-align: center;
             cursor: pointer;
-            transition: all 0.3s;
             background: #f8f9fa;
             margin: 20px 0;
         }
-        
         .upload-area:hover {
             background: #eef2ff;
-            border-color: #5a67d8;
         }
-        
-        .upload-area.dragover {
-            background: #e3f2fd;
-            border-color: #2196f3;
-        }
-        
-        .upload-icon {
-            font-size: 48px;
-            color: #667eea;
-            margin-bottom: 15px;
-        }
-        
-        .file-list {
-            max-height: 300px;
-            overflow-y: auto;
-            margin: 20px 0;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 15px;
-        }
-        
-        .file-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .analysis-results {
-            background: #f7fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        
-        .analysis-item {
-            display: flex;
-            align-items: center;
-            padding: 12px;
-            background: white;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-        
-        .analysis-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 15px;
-            font-size: 20px;
-        }
-        
-        .icon-success {
-            background: #c6f6d5;
-            color: #22543d;
-        }
-        
-        .icon-warning {
-            background: #feebc8;
-            color: #744210;
-        }
-        
-        .icon-error {
-            background: #fed7d7;
-            color: #742a2a;
-        }
-        
-        .progress-container {
-            margin: 30px 0;
-        }
-        
-        .progress-bar {
-            height: 20px;
-            background: #e2e8f0;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 10px;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            width: 0%;
-            transition: width 0.3s;
-        }
-        
-        .log-container {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            background: #1a202c;
-            padding: 15px;
-            margin-top: 20px;
-        }
-        
-        .log-entry {
-            font-family: monospace;
-            font-size: 0.9rem;
-            padding: 8px;
-            border-bottom: 1px solid #2d3748;
-            color: #e2e8f0;
-        }
-        
-        .log-success {
-            color: #68d391;
-        }
-        
-        .log-error {
-            color: #fc8181;
-        }
-        
-        .log-warning {
-            color: #f6ad55;
-        }
-        
-        .buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        
-        button {
+        .btn {
             padding: 12px 24px;
             border: none;
             border-radius: 8px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            margin: 5px;
         }
-        
         .btn-primary {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
         }
-        
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        .btn-secondary {
-            background: #718096;
-            color: white;
-        }
-        
-        .btn-danger {
-            background: #fc8181;
-            color: white;
-        }
-        
-        button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-        
-        .spinner {
-            width: 20px;
+        .btn-success { background: #48bb78; color: white; }
+        .btn-danger { background: #fc8181; color: white; }
+        .hidden { display: none !important; }
+        .progress-bar {
             height: 20px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s linear infinite;
-            margin-right: 10px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 20px 0;
         }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+        }
+        .file-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            padding: 10px;
+            margin: 10px 0;
         }
     </style>
 </head>
@@ -272,495 +91,455 @@
     <div class="container">
         <div class="header">
             <h1>📤 VK Photo Uploader</h1>
-            <p>Загрузка фото в альбом ВКонтакте с комментариями</p>
+            <p>Файлы загружаются напрямую в VK, Render только координирует</p>
         </div>
-        
-        <!-- ШАГ 1: ВЫБОР ПАПКИ -->
+
+        <!-- ШАГ 1: ЗАГРУЗКА CSV И КОНФИГА -->
         <div class="card" id="step1">
-            <div class="step-header">
-                <div class="step-number">1</div>
-                <h2>Выберите папку с файлами</h2>
+            <h2>1. Выберите файлы</h2>
+            
+            <div class="upload-area" onclick="document.getElementById('configInput').click()">
+                <h3>📁 1. Выберите config.txt и CSV файл</h3>
+                <p>config.txt + файл .csv</p>
+                <input type="file" id="configInput" multiple accept=".txt,.csv" hidden>
             </div>
             
-            <div class="upload-area" id="dropZone" onclick="document.getElementById('folderInput').click()">
-                <div class="upload-icon">📁</div>
-                <h3>Перетащите папку сюда или нажмите для выбора</h3>
-                <p style="color: #666; margin-top: 10px;">
-                    В папке должны быть: config.txt, CSV файл и все фотографии
-                </p>
+            <div class="upload-area" onclick="document.getElementById('photoInput').click()">
+                <h3>🖼️ 2. Выберите папку с фотографиями</h3>
+                <p>Все фото из CSV</p>
+                <input type="file" id="photoInput" webkitdirectory directory multiple hidden>
             </div>
             
-            <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+            <div id="fileInfo" class="file-list hidden"></div>
             
-            <div id="fileList" class="file-list hidden"></div>
-            <div id="analysisResults" class="analysis-results hidden"></div>
-            
-            <div class="buttons">
-                <button id="checkBtn" class="btn-primary" onclick="checkFiles()" disabled>
-                    Проверить файлы
-                </button>
-                <button id="testVKBtn" class="btn-secondary" onclick="testVKConnection()" disabled>
-                    Тест VK
-                </button>
-            </div>
+            <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeFiles()" disabled>
+                🔍 Анализировать CSV
+            </button>
+            <button class="btn btn-success" id="testVKBtn" onclick="testVK()" disabled>
+                🔌 Тест VK
+            </button>
         </div>
-        
-        <!-- ШАГ 2: ЗАГРУЗКА -->
+
+        <!-- ШАГ 2: ЗАГРУЗКА В VK -->
         <div class="card hidden" id="step2">
-            <div class="step-header">
-                <div class="step-number">2</div>
-                <h2>Загрузка в VK</h2>
-            </div>
+            <h2>2. Загрузка в VK</h2>
             
-            <div class="progress-container">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-                <p style="text-align: center;" id="progressText">0%</p>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
             </div>
+            <p id="progressText">0%</p>
             
-            <div id="currentStatus" class="analysis-item">
-                <div class="analysis-icon icon-info">⏳</div>
-                <div>
-                    <strong>Подготовка к загрузке...</strong>
-                </div>
-            </div>
+            <div id="currentPhoto"></div>
             
-            <div class="buttons">
-                <button id="cancelBtn" class="btn-danger" onclick="cancelUpload()">
-                    Отменить загрузку
-                </button>
-            </div>
+            <button class="btn btn-danger" onclick="cancelUpload()">
+                ❌ Отменить
+            </button>
         </div>
-        
+
         <!-- ШАГ 3: РЕЗУЛЬТАТЫ -->
         <div class="card hidden" id="step3">
-            <div class="step-header">
-                <div class="step-number">3</div>
-                <h2>Результаты загрузки</h2>
-            </div>
-            
-            <div id="finalResults"></div>
-            
-            <div class="buttons">
-                <button class="btn-primary" onclick="location.reload()">
-                    Начать новую загрузку
-                </button>
-            </div>
+            <h2>3. Результаты</h2>
+            <div id="results"></div>
+            <button class="btn btn-primary" onclick="location.reload()">
+                🔄 Новая загрузка
+            </button>
         </div>
-        
-        <!-- ЛОГ ВЫПОЛНЕНИЯ -->
+
+        <!-- ЛОГ -->
         <div class="card">
             <h3>📋 Лог выполнения</h3>
-            <div class="log-container" id="logContainer">
-                <div class="log-entry">
-                    <span style="color: #63b3ed;">[Готов]</span> Приложение готово к работе. Выберите папку с файлами.
-                </div>
+            <div class="log" id="log">
+                [Готов] Приложение запущено<br>
             </div>
         </div>
     </div>
 
     <script>
         // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
-        let selectedFiles = [];
-        let currentSessionId = null;
-        let uploadInProgress = false;
+        let configFile = null;
+        let csvFile = null;
+        let photoFiles = {};
+        let sessionId = null;
+        let csvData = null;
         let totalRows = 0;
         let currentRow = 0;
-        
+        let uploadActive = false;
+
         // ==================== DOM ЭЛЕМЕНТЫ ====================
-        const dropZone = document.getElementById('dropZone');
-        const folderInput = document.getElementById('folderInput');
-        const fileList = document.getElementById('fileList');
-        const analysisResults = document.getElementById('analysisResults');
-        const checkBtn = document.getElementById('checkBtn');
+        const configInput = document.getElementById('configInput');
+        const photoInput = document.getElementById('photoInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
         const testVKBtn = document.getElementById('testVKBtn');
-        const step1 = document.getElementById('step1');
-        const step2 = document.getElementById('step2');
-        const step3 = document.getElementById('step3');
-        const progressFill = document.getElementById('progressFill');
-        const progressText = document.getElementById('progressText');
-        const currentStatus = document.getElementById('currentStatus');
-        const logContainer = document.getElementById('logContainer');
-        const finalResults = document.getElementById('finalResults');
-        
-        // ==================== ФУНКЦИИ ЛОГИРОВАНИЯ ====================
-        function addLog(message, type = 'info') {
-            const timestamp = new Date().toLocaleTimeString();
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-            
-            let color = '#e2e8f0';
-            if (type === 'success') color = '#68d391';
-            if (type === 'error') color = '#fc8181';
-            if (type === 'warning') color = '#f6ad55';
-            
-            logEntry.innerHTML = `<span style="color: #a0aec0;">[${timestamp}]</span> <span style="color: ${color};">${message}</span>`;
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
+        const fileInfo = document.getElementById('fileInfo');
+        const log = document.getElementById('log');
+
+        // ==================== ЛОГИРОВАНИЕ ====================
+        function addLog(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#fc8181' : type === 'success' ? '#68d391' : '#e2e8f0';
+            log.innerHTML += `<span style="color: #a0aec0;">[${time}]</span> <span style="color: ${color};">${msg}</span><br>`;
+            log.scrollTop = log.scrollHeight;
         }
-        
-        // ==================== ОБРАБОТКА ПЕРЕТАСКИВАНИЯ ====================
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-        
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
-        
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            
-            const items = e.dataTransfer.items;
-            if (items) {
-                for (let i = 0; i < items.length; i++) {
-                    const entry = items[i].webkitGetAsEntry();
-                    if (entry) {
-                        traverseFileTree(entry);
-                    }
+
+        // ==================== ЗАГРУЗКА ФАЙЛОВ ====================
+        configInput.addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                const name = file.name.toLowerCase();
+                if (name === 'config.txt' || (name.endsWith('.txt') && name.includes('config'))) {
+                    configFile = file;
+                    addLog(`✅ Config: ${file.name}`, 'success');
+                } else if (name.endsWith('.csv')) {
+                    csvFile = file;
+                    addLog(`✅ CSV: ${file.name}`, 'success');
                 }
-            }
-        });
-        
-        function traverseFileTree(entry, path = '') {
-            if (entry.isFile) {
-                entry.file(file => {
-                    file.filepath = path + file.name;
-                    selectedFiles.push(file);
-                    
-                    // Показываем файлы после небольшой задержки
-                    if (selectedFiles.length === 1) {
-                        setTimeout(() => displayFiles(), 100);
-                    }
-                });
-            } else if (entry.isDirectory) {
-                const dirReader = entry.createReader();
-                dirReader.readEntries(entries => {
-                    for (let i = 0; i < entries.length; i++) {
-                        traverseFileTree(entries[i], path + entry.name + '/');
-                    }
-                });
-            }
-        }
-        
-        folderInput.addEventListener('change', (e) => {
-            selectedFiles = Array.from(e.target.files);
-            displayFiles();
-        });
-        
-        // ==================== ОТОБРАЖЕНИЕ ФАЙЛОВ ====================
-        function displayFiles() {
-            if (!selectedFiles || selectedFiles.length === 0) {
-                addLog('Нет выбранных файлов', 'warning');
-                return;
-            }
-            
-            fileList.classList.remove('hidden');
-            fileList.innerHTML = '<h4>📁 Выбранные файлы:</h4>';
-            
-            const configs = selectedFiles.filter(f => f.name.toLowerCase().includes('config') && f.name.toLowerCase().endsWith('.txt'));
-            const csvs = selectedFiles.filter(f => f.name.toLowerCase().endsWith('.csv'));
-            const photos = selectedFiles.filter(f => {
-                const ext = f.name.toLowerCase().split('.').pop();
-                return ['jpg', 'jpeg', 'png', 'gif'].includes(ext);
             });
+            checkReady();
+        });
+
+        photoInput.addEventListener('change', function(e) {
+            photoFiles = {};
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                // СОХРАНЯЕМ С ОРИГИНАЛЬНЫМ ИМЕНЕМ - БЕЗ ИЗМЕНЕНИЙ!
+                photoFiles[file.name] = file;
+            });
+            addLog(`✅ Загружено ${files.length} фотографий`, 'success');
             
-            if (configs.length > 0) {
-                const div = document.createElement('div');
-                div.innerHTML = `<strong>✅ config.txt:</strong> ${configs[0].name}`;
-                fileList.appendChild(div);
+            // Показываем первые 10 файлов
+            let photoList = '<h4>📸 Фотографии:</h4><ul>';
+            Object.keys(photoFiles).slice(0, 10).forEach(name => {
+                photoList += `<li>${name}</li>`;
+            });
+            if (Object.keys(photoFiles).length > 10) {
+                photoList += `<li>... и еще ${Object.keys(photoFiles).length - 10}</li>`;
             }
+            photoList += '</ul>';
             
-            if (csvs.length > 0) {
-                const div = document.createElement('div');
-                div.innerHTML = `<strong>✅ CSV файл:</strong> ${csvs[0].name}`;
-                fileList.appendChild(div);
-            }
+            const photoDiv = document.createElement('div');
+            photoDiv.innerHTML = photoList;
+            fileInfo.appendChild(photoDiv);
             
-            const div = document.createElement('div');
-            div.innerHTML = `<strong>📸 Фотографий:</strong> ${photos.length}`;
-            fileList.appendChild(div);
-            
-            checkBtn.disabled = false;
-            testVKBtn.disabled = false;
-            
-            addLog(`Выбрано ${selectedFiles.length} файлов`, 'success');
-        }
-        
-        // ==================== ПРОВЕРКА ФАЙЛОВ ====================
-        async function checkFiles() {
-            if (!selectedFiles || selectedFiles.length === 0) {
-                addLog('Сначала выберите папку с файлами', 'error');
-                return;
-            }
-            
-            checkBtn.disabled = true;
-            addLog('🔍 Проверка файлов...', 'info');
-            
-            try {
-                const formData = new FormData();
-                selectedFiles.forEach(file => {
-                    formData.append('files', file);
-                });
-                
-                const response = await fetch('/api/init', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    currentSessionId = data.session_id;
-                    totalRows = data.total_rows || 0;
-                    
-                    addLog(`✅ Анализ завершен. Найдено ${totalRows} записей`, 'success');
-                    
-                    if (data.file_analysis) {
-                        const analysis = data.file_analysis;
-                        analysisResults.classList.remove('hidden');
-                        
-                        let html = '<h4>📊 Анализ файлов:</h4>';
-                        
-                        if (analysis.all_required_present) {
-                            html += `<p style="color: #22543d;">✅ Все необходимые файлы найдены (${analysis.required_count})</p>`;
-                        } else {
-                            html += `<p style="color: #744210;">⚠️ Отсутствует ${analysis.missing_count} файлов</p>`;
-                            if (analysis.missing_files && analysis.missing_files.length > 0) {
-                                html += '<p><strong>Отсутствуют:</strong> ' + analysis.missing_files.slice(0, 10).join(', ') + '</p>';
-                            }
-                        }
-                        
-                        if (analysis.extra_count > 0) {
-                            html += `<p style="color: #744210;">📁 Лишние файлы: ${analysis.extra_count}</p>`;
-                        }
-                        
-                        analysisResults.innerHTML = html;
-                        
-                        // Активируем кнопку начала загрузки
-                        const startBtn = document.createElement('button');
-                        startBtn.className = 'btn-primary';
-                        startBtn.onclick = startUpload;
-                        startBtn.innerHTML = '🚀 Начать загрузку в VK';
-                        analysisResults.appendChild(startBtn);
-                    }
-                    
-                } else {
-                    addLog(`❌ Ошибка: ${data.error || 'Неизвестная ошибка'}`, 'error');
-                    checkBtn.disabled = false;
-                }
-                
-            } catch (error) {
-                addLog(`❌ Ошибка сети: ${error.message}`, 'error');
-                console.error('Check files error:', error);
-                checkBtn.disabled = false;
+            checkReady();
+        });
+
+        function checkReady() {
+            if (configFile && csvFile && Object.keys(photoFiles).length > 0) {
+                analyzeBtn.disabled = false;
+                testVKBtn.disabled = false;
+                fileInfo.classList.remove('hidden');
+                addLog('✅ Все файлы загружены, можно начинать', 'success');
             }
         }
-        
+
         // ==================== ТЕСТ VK ====================
-        async function testVKConnection() {
-            if (!selectedFiles || selectedFiles.length === 0) {
-                addLog('Сначала выберите папку с файлами', 'error');
+        async function testVK() {
+            if (!configFile) {
+                addLog('❌ Сначала загрузите config.txt', 'error');
                 return;
             }
             
             testVKBtn.disabled = true;
             addLog('🔌 Тестирование подключения к VK...', 'info');
             
+            const formData = new FormData();
+            formData.append('files', configFile);
+            
             try {
-                const formData = new FormData();
-                selectedFiles.forEach(file => {
-                    formData.append('files', file);
-                });
-                
-                const response = await fetch('/api/test-vk', {
+                const res = await fetch('/api/test-vk', {
                     method: 'POST',
                     body: formData
                 });
-                
-                const data = await response.json();
+                const data = await res.json();
                 
                 if (data.success) {
-                    addLog(`✅ Подключение к VK успешно!`, 'success');
-                    if (data.user_info) {
-                        addLog(`👤 Пользователь: ${data.user_info.first_name || ''} ${data.user_info.last_name || ''}`, 'info');
-                    }
+                    addLog(`✅ VK: ${data.user.first_name} ${data.user.last_name}`, 'success');
                 } else {
-                    addLog(`❌ Ошибка VK: ${data.error || 'Неизвестная ошибка'}`, 'error');
+                    addLog(`❌ VK: ${data.error}`, 'error');
                 }
-                
-            } catch (error) {
-                addLog(`❌ Ошибка сети: ${error.message}`, 'error');
+            } catch (err) {
+                addLog(`❌ Ошибка: ${err.message}`, 'error');
             } finally {
                 testVKBtn.disabled = false;
             }
         }
-        
-        // ==================== НАЧАЛО ЗАГРУЗКИ ====================
-        async function startUpload() {
-            if (!currentSessionId) {
-                addLog('❌ Ошибка: нет активной сессии', 'error');
+
+        // ==================== АНАЛИЗ CSV ====================
+        async function analyzeFiles() {
+            if (!configFile || !csvFile) {
+                addLog('❌ Нет config.txt или CSV', 'error');
                 return;
             }
             
-            uploadInProgress = true;
-            currentRow = 0;
+            analyzeBtn.disabled = true;
+            addLog('🔍 Анализ CSV файла...', 'info');
             
-            // Переключаем шаги
-            step1.classList.add('hidden');
-            step2.classList.remove('hidden');
+            const formData = new FormData();
+            formData.append('files', configFile);
+            formData.append('files', csvFile);
             
-            addLog('🚀 Начало загрузки в VK...', 'success');
-            
-            // Загружаем строки по одной
-            for (let i = 0; i < totalRows; i++) {
-                if (!uploadInProgress) {
-                    addLog('⏸️ Загрузка прервана', 'warning');
-                    break;
-                }
-                
-                await processRow(i);
-                
-                // Обновляем прогресс
-                const percent = ((i + 1) / totalRows * 100).toFixed(1);
-                progressFill.style.width = percent + '%';
-                progressText.textContent = percent + '%';
-            }
-            
-            if (uploadInProgress) {
-                await finalizeUpload();
-            }
-        }
-        
-        // ==================== ОБРАБОТКА СТРОКИ ====================
-        async function processRow(rowIndex) {
             try {
-                currentStatus.innerHTML = `
-                    <div class="analysis-icon icon-info">⏳</div>
-                    <div>
-                        <strong>Обработка строки ${rowIndex + 1} из ${totalRows}</strong><br>
-                        <small>Загрузка фото и создание комментариев...</small>
-                    </div>
-                `;
-                
-                addLog(`📄 Обработка строки ${rowIndex + 1}...`, 'info');
-                
-                const formData = new FormData();
-                selectedFiles.forEach(file => {
-                    formData.append('files', file);
-                });
-                formData.append('session_id', currentSessionId);
-                
-                const response = await fetch(`/api/process-row/${rowIndex}`, {
+                const res = await fetch('/api/analyze', {
                     method: 'POST',
-                    headers: {
-                        'X-Session-ID': currentSessionId
-                    },
                     body: formData
                 });
-                
-                const data = await response.json();
+                const data = await res.json();
                 
                 if (data.success) {
-                    const result = data.result || {};
-                    if (result.success) {
-                        addLog(`✅ Строка ${rowIndex + 1}: ${result.main_photo || ''} - загружено`, 'success');
+                    sessionId = data.session_id;
+                    totalRows = data.total_rows;
+                    csvData = data;
+                    
+                    addLog(`✅ Найдено ${totalRows} записей`, 'success');
+                    addLog(`📋 Требуется файлов: ${data.required_count}`, 'info');
+                    
+                    // Проверяем наличие файлов
+                    const missing = [];
+                    data.required_files.forEach(filename => {
+                        if (!photoFiles[filename] && !photoFiles[filename.toLowerCase()]) {
+                            missing.push(filename);
+                        }
+                    });
+                    
+                    if (missing.length > 0) {
+                        addLog(`⚠️ Отсутствуют: ${missing.slice(0, 5).join(', ')}`, 'warning');
+                        if (missing.length > 5) addLog(`   ... и еще ${missing.length - 5}`, 'warning');
                     } else {
-                        const error = result.errors ? result.errors[0] : 'Неизвестная ошибка';
-                        addLog(`❌ Строка ${rowIndex + 1}: ${result.main_photo || ''} - ${error}`, 'error');
+                        addLog(`✅ Все файлы в наличии!`, 'success');
                     }
+                    
+                    // Кнопка старта
+                    const startBtn = document.createElement('button');
+                    startBtn.className = 'btn btn-success';
+                    startBtn.innerText = '🚀 Начать загрузку в VK';
+                    startBtn.onclick = startUpload;
+                    document.getElementById('step1').appendChild(startBtn);
+                    
                 } else {
-                    addLog(`❌ Ошибка: ${data.error || 'Неизвестная ошибка'}`, 'error');
+                    addLog(`❌ ${data.error}`, 'error');
                 }
+            } catch (err) {
+                addLog(`❌ Ошибка: ${err.message}`, 'error');
+            }
+        }
+
+        // ==================== ЗАГРУЗКА В VK ====================
+        async function startUpload() {
+            document.getElementById('step1').classList.add('hidden');
+            document.getElementById('step2').classList.remove('hidden');
+            uploadActive = true;
+            
+            addLog('🚀 Начало загрузки...', 'success');
+            
+            for (let i = 0; i < totalRows; i++) {
+                if (!uploadActive) break;
                 
-            } catch (error) {
-                addLog(`❌ Ошибка сети: ${error.message}`, 'error');
-                console.error('Process row error:', error);
+                currentRow = i;
+                await processRow(i);
+                
+                const percent = ((i + 1) / totalRows * 100).toFixed(1);
+                document.getElementById('progressFill').style.width = percent + '%';
+                document.getElementById('progressText').innerHTML = `${percent}% (${i + 1}/${totalRows})`;
             }
             
-            // Пауза между запросами
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            if (uploadActive) {
+                await finalize();
+            }
         }
-        
-        // ==================== ЗАВЕРШЕНИЕ ====================
-        async function finalizeUpload() {
+
+        // ==================== ОБРАБОТКА СТРОКИ ====================
+        async function processRow(rowIndex) {
+            addLog(`📄 Строка ${rowIndex + 1}...`, 'info');
+            
+            try {
+                // 1. Получаем URL для загрузки от Render
+                const urlRes = await fetch(`/api/get-upload-urls/${sessionId}/${rowIndex}`);
+                const urlData = await urlRes.json();
+                
+                if (!urlData.success) {
+                    throw new Error(urlData.error);
+                }
+                
+                // 2. Загружаем основное фото ПРЯМО В VK
+                const mainPhoto = urlData.main_photo;
+                let mainResult = null;
+                
+                // Ищем файл без учета регистра
+                const mainFile = photoFiles[mainPhoto.filename] || 
+                               photoFiles[mainPhoto.filename.toLowerCase()] ||
+                               photoFiles[mainPhoto.filename.toUpperCase()];
+                
+                if (mainFile) {
+                    addLog(`   📤 Загрузка ${mainPhoto.filename}...`, 'info');
+                    
+                    const formData = new FormData();
+                    formData.append('file1', mainFile);
+                    
+                    const uploadRes = await fetch(mainPhoto.upload_url, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const uploadData = await uploadRes.json();
+                    
+                    // 3. Сохраняем фото в альбоме
+                    const saveRes = await fetch('https://api.vk.com/method/photos.save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams({
+                            access_token: (await getConfig()).ACCESS_TOKEN,
+                            server: uploadData.server,
+                            photos_list: uploadData.photos_list,
+                            hash: uploadData.hash,
+                            album_id: (await getConfig()).ALBUM_ID,
+                            v: '5.199'
+                        })
+                    });
+                    
+                    const saveData = await saveRes.json();
+                    mainResult = saveData.response[0];
+                    addLog(`   ✅ ${mainPhoto.filename} загружено`, 'success');
+                } else {
+                    throw new Error(`Файл ${mainPhoto.filename} не найден`);
+                }
+                
+                // 4. Загружаем фото для комментариев
+                const commentResults = [];
+                
+                for (const group of urlData.comment_groups) {
+                    const groupPhotos = [];
+                    
+                    for (const photoName of group.group) {
+                        const photoFile = photoFiles[photoName] || 
+                                        photoFiles[photoName.toLowerCase()] ||
+                                        photoFiles[photoName.toUpperCase()];
+                        
+                        if (photoFile) {
+                            const formData = new FormData();
+                            formData.append('photo', photoFile);
+                            
+                            const uploadRes = await fetch(group.upload_url, {
+                                method: 'POST',
+                                body: formData
+                            });
+                            
+                            const uploadData = await uploadRes.json();
+                            
+                            const saveRes = await fetch('https://api.vk.com/method/photos.saveWallPhoto', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                                body: new URLSearchParams({
+                                    access_token: (await getConfig()).ACCESS_TOKEN,
+                                    server: uploadData.server,
+                                    photo: uploadData.photo,
+                                    hash: uploadData.hash,
+                                    v: '5.199'
+                                })
+                            });
+                            
+                            const saveData = await saveRes.json();
+                            groupPhotos.push(saveData.response[0]);
+                        }
+                    }
+                    
+                    // 5. Создаем комментарий
+                    if (groupPhotos.length > 0) {
+                        const attachments = groupPhotos.map(p => `photo${p.owner_id}_${p.id}`);
+                        
+                        await fetch('https://api.vk.com/method/photos.createComment', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: new URLSearchParams({
+                                access_token: (await getConfig()).ACCESS_TOKEN,
+                                owner_id: mainResult.owner_id,
+                                photo_id: mainResult.id,
+                                attachments: attachments.join(','),
+                                v: '5.199'
+                            })
+                        });
+                        
+                        commentResults.push({
+                            group: group.group,
+                            photos: groupPhotos
+                        });
+                    }
+                }
+                
+                // 6. Отправляем результат на Render
+                await fetch('/api/save-result', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        row_index: rowIndex,
+                        main_photo_result: mainResult,
+                        comment_results: commentResults,
+                        errors: []
+                    })
+                });
+                
+            } catch (err) {
+                addLog(`   ❌ Ошибка: ${err.message}`, 'error');
+                
+                await fetch('/api/save-result', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        row_index: rowIndex,
+                        main_photo_result: null,
+                        comment_results: [],
+                        errors: [err.message]
+                    })
+                });
+            }
+        }
+
+        // ==================== ФИНАЛИЗАЦИЯ ====================
+        async function finalize() {
             addLog('📊 Формирование отчета...', 'info');
             
-            try {
-                const response = await fetch(`/api/finalize/${currentSessionId}`);
-                const data = await response.json();
+            const res = await fetch(`/api/finalize/${sessionId}`);
+            const data = await res.json();
+            
+            if (data.success) {
+                const report = data.report;
+                document.getElementById('step2').classList.add('hidden');
+                document.getElementById('step3').classList.remove('hidden');
                 
-                if (data.success) {
-                    const report = data.report || {};
-                    const stats = report.statistics || {};
-                    
-                    step2.classList.add('hidden');
-                    step3.classList.remove('hidden');
-                    
-                    let html = '<h3>✅ Загрузка завершена!</h3>';
-                    html += `<p>Обработано: ${stats.processed_rows || 0} из ${stats.total_rows || 0} строк</p>`;
-                    html += `<p>Успешно: ${stats.successful_rows || 0}</p>`;
-                    html += `<p>Ошибок: ${stats.failed_rows || 0}</p>`;
-                    
-                    if (report.file_analysis) {
-                        if (report.file_analysis.missing_count > 0) {
-                            html += `<p style="color: #744210;">⚠️ Отсутствовало файлов: ${report.file_analysis.missing_count}</p>`;
-                        }
-                        if (report.file_analysis.extra_count > 0) {
-                            html += `<p style="color: #744210;">📁 Лишних файлов: ${report.file_analysis.extra_count}</p>`;
-                        }
-                    }
-                    
-                    if (report.errors && report.errors.length > 0) {
-                        html += '<h4>❌ Ошибки:</h4><ul style="color: #742a2a;">';
-                        report.errors.slice(0, 5).forEach(err => {
-                            html += `<li>${err}</li>`;
-                        });
-                        if (report.errors.length > 5) {
-                            html += `<li>... и еще ${report.errors.length - 5} ошибок</li>`;
-                        }
-                        html += '</ul>';
-                    }
-                    
-                    finalResults.innerHTML = html;
-                    
-                    addLog('✅ Загрузка полностью завершена!', 'success');
-                    
-                } else {
-                    addLog(`❌ Ошибка формирования отчета: ${data.error || 'Неизвестная ошибка'}`, 'error');
+                let html = `
+                    <h3>✅ Загрузка завершена!</h3>
+                    <p>Обработано: ${report.statistics.processed_rows} из ${report.statistics.total_rows} строк</p>
+                    <p>Успешно: ${report.statistics.successful_rows}</p>
+                    <p>Ошибок: ${report.statistics.failed_rows}</p>
+                `;
+                
+                if (report.files.missing_count > 0) {
+                    html += `<p style="color: #c05621;">⚠️ Отсутствовало файлов: ${report.files.missing_count}</p>`;
                 }
                 
-            } catch (error) {
-                addLog(`❌ Ошибка сети: ${error.message}`, 'error');
+                document.getElementById('results').innerHTML = html;
+                addLog('✅ Загрузка завершена!', 'success');
             }
         }
-        
+
         // ==================== ОТМЕНА ====================
         async function cancelUpload() {
-            if (!currentSessionId) return;
-            
-            uploadInProgress = false;
-            
-            try {
-                await fetch(`/api/cancel/${currentSessionId}`, {
-                    method: 'POST'
-                });
-                addLog('⏸️ Загрузка отменена пользователем', 'warning');
-                
-                // Возвращаемся к шагу 1
-                step2.classList.add('hidden');
-                step1.classList.remove('hidden');
-                
-            } catch (error) {
-                addLog(`❌ Ошибка при отмене: ${error.message}`, 'error');
+            uploadActive = false;
+            if (sessionId) {
+                await fetch(`/api/cancel/${sessionId}`, { method: 'POST' });
             }
+            addLog('⏸️ Загрузка отменена', 'warning');
+            location.reload();
         }
-        
-        // ==================== ИНИЦИАЛИЗАЦИЯ ====================
-        addLog('✅ Приложение готово к работе', 'success');
+
+        // ==================== ВСПОМОГАТЕЛЬНОЕ ====================
+        async function getConfig() {
+            if (!sessionId) return null;
+            const res = await fetch(`/api/session/${sessionId}`);
+            const data = await res.json();
+            return data.config;
+        }
     </script>
 </body>
 </html>

@@ -50,48 +50,67 @@ def parse_config(content):
     return config
 
 def parse_csv(content):
-    """Парсинг CSV с поддержкой UTF-8 и кириллицы"""
+    """Парсинг CSV с поддержкой UTF-8 и кириллицы - ИСПРАВЛЕНО"""
     if isinstance(content, bytes):
-        content = content.decode('utf-8-sig', errors='ignore')
+        # Декодируем UTF-8-SIG (убирает BOM) и сохраняем кириллицу
+        content = content.decode('utf-8-sig', errors='replace')
     
-    lines = [line.strip() for line in content.split('\n') if line.strip()]
+    # Разбиваем на строки, сохраняем ВСЕ символы
+    lines = []
+    for line in content.split('\n'):
+        line = line.rstrip('\r')  # Убираем только \r, оставляем пробелы
+        if line:  # Не пустая строка
+            lines.append(line)
     
+    if not lines:
+        return []
+    
+    # Определяем разделитель
     delimiter = '|'
-    if lines and lines[0].startswith('sep='):
-        delimiter = lines[0].split('=')[1].strip()
-        lines = lines[1:]
+    start_idx = 0
     
-    if lines and ('Файл изображения' in lines[0] or 'файл' in lines[0].lower()):
-        lines = lines[1:]
+    if lines[0].startswith('sep='):
+        delimiter = lines[0].split('=')[1].strip()
+        start_idx = 1
+    
+    # Пропускаем заголовок
+    if start_idx < len(lines) and ('Файл изображения' in lines[start_idx] or 'файл' in lines[start_idx].lower()):
+        start_idx += 1
     
     csv_data = []
-    for i, line in enumerate(lines):
-        if not line.strip():
+    
+    for i in range(start_idx, len(lines)):
+        line = lines[i].strip()
+        if not line:
             continue
         
-        # ВАЖНО: не удаляем пустые строки и сохраняем ВСЕ символы
+        # Разбиваем по разделителю, НЕ обрезаем кавычки и пробелы внутри полей
         parts = line.split(delimiter)
-        parts = [p.strip() for p in parts]
         
         if len(parts) >= 2:
+            # main_photo - первое поле
             main_photo = parts[0].strip()
-            description = parts[1].strip() if len(parts) > 1 else ''
             
-            # НЕ заменяем пустое описание на дефисы!
-            # Если описание пустое - оставляем пустую строку
+            # description - второе поле, СОХРАНЯЕМ КАК ЕСТЬ!
+            description = parts[1] if len(parts) > 1 else ''
             
+            # comment_photos - третье поле
             comment_photos = []
             if len(parts) > 2 and parts[2].strip():
+                # Разбиваем по точке с запятой
                 comment_photos = [p.strip() for p in parts[2].split(';') if p.strip()]
             
             if main_photo:
                 csv_data.append({
                     'main_photo': main_photo,
-                    'description': description,  # Сохраняем как есть!
+                    'description': description,  # НИЧЕГО НЕ МЕНЯЕМ!
                     'comment_photos': comment_photos
                 })
-                print(f"CSV строка {i+1}: {main_photo} - {description[:50]}...")
+                # Показываем первые 50 символов описания
+                preview = description[:50].replace('\n', ' ')
+                print(f"✅ CSV строка {len(csv_data)}: {main_photo} - {preview}...")
     
+    print(f"📊 Всего загружено записей: {len(csv_data)}")
     return csv_data
 # ==================== ПРОКСИ-ФУНКЦИИ ДЛЯ VK ====================
 def proxy_upload_to_album(upload_url, file_data, filename):
@@ -203,41 +222,11 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
         print(f"  ❌ Ошибка: {error_msg}")
         raise Exception(f"VK Error: {error_msg}")
     
-    print(f"  ✅ Комментарий создан, ID: {result['response'].get('comment_id')}")
-    return result['response']
-
-def proxy_get_upload_server(access_token, album_id, group_id=None):
-    """Получить URL для загрузки в альбом - GET запрос как в рабочем коде"""
-    params = {
-        'access_token': access_token,
-        'v': VK_API_VERSION,
-        'album_id': album_id
-    }
-    if group_id:
-        params['group_id'] = abs(int(group_id))
+    # ИСПРАВЛЕНИЕ: result['response'] - это число (comment_id), а не словарь!
+    comment_id = result['response']
+    print(f"  ✅ Комментарий создан, ID: {comment_id}")
     
-    response = requests.get('https://api.vk.com/method/photos.getUploadServer', params=params, timeout=30)
-    response.raise_for_status()
-    result = response.json()
-    if 'error' in result:
-        raise Exception(f"VK Error: {result['error']['error_msg']}")
-    return result['response']['upload_url']
-
-def proxy_get_wall_upload_server(access_token, group_id=None):
-    """Получить URL для загрузки на стену"""
-    params = {
-        'access_token': access_token,
-        'v': VK_API_VERSION
-    }
-    if group_id:
-        params['group_id'] = abs(int(group_id))
-    
-    response = requests.get('https://api.vk.com/method/photos.getWallUploadServer', params=params, timeout=30)
-    response.raise_for_status()
-    result = response.json()
-    if 'error' in result:
-        raise Exception(f"VK Error: {result['error']['error_msg']}")
-    return result['response']['upload_url']
+    return {'comment_id': comment_id}  # Возвращаем словарь для совместимости
 
 # ==================== ОСНОВНЫЕ МАРШРУТЫ ====================
 @app.route('/')

@@ -50,7 +50,7 @@ def parse_config(content):
     
     return config
 
-# ==================== ПАРСИНГ CSV С ПОДДЕРЖКОЙ КИРИЛЛИЦЫ ====================
+# ==================== ПАРСИНГ CSV ====================
 def parse_csv(content):
     """Парсинг CSV с описанием из 2 столбца (UTF-8)"""
     if isinstance(content, bytes):
@@ -109,7 +109,6 @@ def proxy_upload_to_wall(upload_url, file_data, filename):
 def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_id, group_id=None, description=""):
     """Сохранить фото в альбоме с ОПИСАНИЕМ (кириллица!)"""
     
-    # ВАЖНО: Используем JSON вместо form-urlencoded для кириллицы!
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
@@ -119,7 +118,6 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
         'album_id': album_id,
     }
     
-    # Добавляем описание ТОЛЬКО если оно не пустое
     if description and description.strip():
         params['caption'] = description.strip()
         print(f"  📝 Отправляем описание: {description[:50]}...")
@@ -127,12 +125,12 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    # ВАЖНО: Используем JSON для сохранения кириллицы!
+    # ВАЖНО: Используем JSON для кириллицы
     headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
         'https://api.vk.com/method/photos.save', 
-        json=params,  # Отправляем как JSON, а не form-data!
+        json=params,
         headers=headers,
         timeout=30
     )
@@ -144,12 +142,6 @@ def proxy_save_album_photo(access_token, server, photos_list, hash_value, album_
         error_msg = result['error'].get('error_msg', 'Unknown error')
         print(f"❌ VK Error: {error_msg}")
         raise Exception(f"VK Error: {error_msg}")
-    
-    # Проверяем, сохранилось ли описание
-    if result['response'] and result['response'][0].get('text'):
-        print(f"  ✅ Описание сохранено: {result['response'][0]['text'][:50]}...")
-    else:
-        print(f"  ⚠️ Описание не сохранилось в ответе VK")
     
     return result['response']
 
@@ -165,7 +157,6 @@ def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    # Используем JSON
     headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
@@ -181,19 +172,24 @@ def proxy_save_wall_photo(access_token, server, photo, hash_value, group_id=None
     return result['response']
 
 def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id=None):
-    """Создание комментария"""
+    """Создание комментария ОТ ИМЕНИ ГРУППЫ!"""
+    
+    # ВАЖНО: owner_id должен быть отрицательным для группы
+    if group_id:
+        owner_id = -abs(int(group_id))  # Принудительно ставим ID группы
+    
     params = {
         'access_token': access_token,
         'v': VK_API_VERSION,
-        'owner_id': owner_id,
+        'owner_id': owner_id,  # Отрицательное число = группа
         'photo_id': photo_id,
         'message': '',
-        'attachments': ','.join(attachments)
+        'attachments': ','.join(attachments),
+        'from_group': 1  # КЛЮЧЕВОЕ! 1 = от имени группы, 0 = от пользователя
     }
-    if group_id:
-        params['group_id'] = abs(int(group_id))
     
-    # Используем JSON
+    print(f"  💬 Создание комментария от имени группы, owner_id={owner_id}, from_group=1")
+    
     headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
@@ -204,8 +200,13 @@ def proxy_create_comment(access_token, owner_id, photo_id, attachments, group_id
     )
     response.raise_for_status()
     result = response.json()
+    
     if 'error' in result:
-        raise Exception(f"VK Error: {result['error']['error_msg']}")
+        error_msg = result['error'].get('error_msg', 'Unknown error')
+        print(f"  ❌ Ошибка создания комментария: {error_msg}")
+        raise Exception(f"VK Error: {error_msg}")
+    
+    print(f"  ✅ Комментарий создан, ID: {result['response'].get('comment_id')}")
     return result['response']
 
 def proxy_get_upload_server(access_token, album_id, group_id=None):
@@ -218,7 +219,6 @@ def proxy_get_upload_server(access_token, album_id, group_id=None):
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    # Используем JSON
     headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
@@ -242,7 +242,6 @@ def proxy_get_wall_upload_server(access_token, group_id=None):
     if group_id:
         params['group_id'] = abs(int(group_id))
     
-    # Используем JSON
     headers = {'Content-Type': 'application/json'}
     
     response = requests.post(
@@ -276,7 +275,6 @@ def test_vk():
         if not token:
             return jsonify({'success': False, 'error': 'Нет ACCESS_TOKEN'}), 400
         
-        # Используем JSON
         params = {
             'access_token': token,
             'v': VK_API_VERSION
@@ -397,7 +395,6 @@ def get_upload_urls(session_id, row_index):
                     )
                 })
         
-        # ВАЖНО: Возвращаем описание как есть, Flask сохранит UTF-8
         return jsonify({
             'success': True,
             'row_index': row_index,
@@ -415,14 +412,12 @@ def get_upload_urls(session_id, row_index):
 # ==================== ПРОКСИ-ЗАГРУЗКА В АЛЬБОМ ====================
 @app.route('/api/proxy/upload-album', methods=['POST'])
 def proxy_upload_album():
-    """Прокси-эндпоинт: браузер -> Render -> VK -> Render -> браузер"""
     try:
         session_id = request.form.get('session_id')
         filename = request.form.get('filename')
         upload_url = request.form.get('upload_url')
         description = request.form.get('description', '')
         
-        # ВАЖНО: Сохраняем описание в UTF-8
         if description:
             description = description.strip()
             print(f"📝 Получено описание: {description}")
@@ -439,10 +434,8 @@ def proxy_upload_album():
         
         config = session_data.get('config', {})
         
-        # 1. Загружаем на сервер VK
         upload_result = proxy_upload_to_album(upload_url, file_data, filename)
         
-        # 2. Сохраняем в альбоме с ОПИСАНИЕМ (кириллица!)
         save_result = proxy_save_album_photo(
             config['ACCESS_TOKEN'],
             upload_result['server'],
@@ -465,7 +458,6 @@ def proxy_upload_album():
 # ==================== ПРОКСИ-ЗАГРУЗКА НА СТЕНУ ====================
 @app.route('/api/proxy/upload-wall', methods=['POST'])
 def proxy_upload_wall():
-    """Прокси-эндпоинт для загрузки фото на стену"""
     try:
         session_id = request.form.get('session_id')
         filename = request.form.get('filename')
@@ -504,7 +496,7 @@ def proxy_upload_wall():
 # ==================== ПРОКСИ-СОЗДАНИЕ КОММЕНТАРИЯ ====================
 @app.route('/api/proxy/create-comment', methods=['POST'])
 def proxy_create_comment_endpoint():
-    """Прокси-эндпоинт для создания комментария"""
+    """Прокси-эндпоинт для создания комментария ОТ ИМЕНИ ГРУППЫ"""
     try:
         data = request.json
         session_id = data.get('session_id')
@@ -517,13 +509,18 @@ def proxy_create_comment_endpoint():
             return jsonify({'success': False, 'error': 'Сессия не найдена'}), 404
         
         config = session_data.get('config', {})
+        group_id = config.get('GROUP_ID')
+        
+        # ВАЖНО: Используем owner_id от группы
+        if group_id:
+            owner_id = -abs(int(group_id))
         
         result = proxy_create_comment(
             config['ACCESS_TOKEN'],
             owner_id,
             photo_id,
             attachments,
-            config.get('GROUP_ID')
+            group_id  # Передаем group_id для from_group=1
         )
         
         return jsonify({
@@ -532,6 +529,7 @@ def proxy_create_comment_endpoint():
         })
         
     except Exception as e:
+        print(f"❌ Ошибка создания комментария: {str(e)}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ==================== СОХРАНИТЬ РЕЗУЛЬТАТ ====================
@@ -624,6 +622,12 @@ def finalize(session_id):
 def cancel(session_id):
     delete_session(session_id)
     return jsonify({'success': True})
+
+# ==================== ДОБАВЛЯЕМ HEALTH CHECK ДЛЯ RENDER ====================
+@app.route('/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'ok', 'time': time.time()})
 
 # ==================== ЗАПУСК ====================
 if __name__ == '__main__':
